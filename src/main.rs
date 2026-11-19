@@ -6,7 +6,9 @@ mod paths;
 mod startup;
 mod theme;
 
-use gpui::{App, Bounds, WindowBounds, WindowOptions, px, size};
+use gpui::{
+    App, Bounds, TitlebarOptions, WindowBounds, WindowOptions, px, size,
+};
 use gpui::prelude::*;
 
 fn main() {
@@ -33,6 +35,13 @@ fn main() {
                         restore_size,
                         cx,
                     ))),
+                    titlebar: Some(TitlebarOptions {
+                        title: Some("prog-rs".into()),
+                        ..Default::default()
+                    }),
+                    // Must match the desktop file basename so KWin associates
+                    // the window with prog-rs.desktop (icon in task switcher).
+                    app_id: Some("prog-rs".into()),
                     ..Default::default()
                 },
                 |window, cx| {
