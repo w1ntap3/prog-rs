@@ -3,7 +3,8 @@
 ## Project
 
 prog-rs — a [GPUI](https://gpui.rs) (Zed's GPU-accelerated UI framework) app.
-Currently shows an animated gradient in a 100x100 px rounded box; installs on
+Currently a maximized shell with a left menu (sections: main, finances,
+appeal; "main" is the default page) and placeholder content; installs on
 PATH as `prog-rs`.
 
 ## Commands
@@ -22,6 +23,12 @@ PATH as `prog-rs`.
 - **Every commit message must explain well what is happening and why** —
   a precise subject plus a body describing the change and its reasoning,
   not just a one-line label.
+- **Before every push, re-read the Architecture section of this file against
+  the actual tree** — document new modules and decisions, drop stale ones.
+  The push gate is only satisfied when the docs describe the app as it is.
+- **Personal data never gets committed.** User data (finances etc.) lives in
+  `$XDG_DATA_HOME/prog-rs` (see `src/data.rs`); the repo contains structure
+  and code only. Configs shared for import/export are structure-only too.
 
 ## Code principles
 
@@ -38,6 +45,10 @@ PATH as `prog-rs`.
 
 Strictly consistent: one palette, one spacing scale, one radius/motion language.
 All colors and sizes live in `src/theme.rs` and nowhere else.
+
+Current style language: **flat minimal** — square corners only, no shadows, no
+gradients, hairline (`border_*_1`) separators at most. The user plans to make it
+fancier later, but every change must still flow through `theme.rs` tokens.
 
 Palette = the "Javid" colorscheme from the user's `~/.config/kitty/kitty.conf`:
 
@@ -60,12 +71,40 @@ Palette = the "Javid" colorscheme from the user's `~/.config/kitty/kitty.conf`:
 
 Only these colors may appear in the UI; use the base (normal) variants first.
 
+## Architecture
+
+```
+src/
+  main.rs     entry point: startup tuning -> load config -> open window
+  app.rs      root view: brand, nav (from config.sections), content placeholder
+  config.rs   app STRUCTURE config (sections), TOML, validated, export/import
+  data.rs     personal DATA store: private dir, directory-tree export/import
+  paths.rs    XDG dirs: ~/.config/prog-rs (config) vs ~/.local/share/prog-rs (data)
+  assets.rs   compile-time embedded assets (logo) via gpui AssetSource
+  theme.rs    ALL design tokens: colors (Javid), geometry, spacing, type, weight
+  startup.rs  pre-GPU env tuning (skip NVIDIA ICD when it drives no display)
+assets/       source icon (pure-path SVG) + KDE .desktop template
+scripts/      install-desktop-entry.sh (KRunner launcher installer)
+```
+
+- **Config vs data is the core boundary.** Config = structure (what sections
+  exist), shareable. Data = user content, private, only moved by explicit
+  user action. Both live under the app name in their XDG homes; config is
+  created with defaults on first run (`~/.config/prog-rs/config.toml`).
+- Menu sections render from `config.sections` — adding a section later is a
+  config edit, not a code change (content views will attach per section).
+- `data::export/import` (tree copy) and `Config::export/import` are scaffolded
+  with tests but not wired to UI actions yet — marked `#[allow(dead_code)]`.
+- Window: maximized (restore size 960x600), Escape quits, last window closed
+  quits. Font: 0xProto Nerd Font via fontconfig.
+
 ## Notes
 
 - **App identity is a stub.** Names/descriptions like the KRunner
-  `GenericName=Animated gradient`, the README blurb, and the desktop
-  `Comment=` are placeholders. When the application matures and gains its
-  real purpose, update these to match it (assets/prog-rs.desktop, README.md).
+  `GenericName`, the README blurb, and the desktop `Comment=`, plus the
+  placeholder "empty" content panes, are stand-ins. When the application
+  matures and gains its real purpose, update these to match it
+  (assets/prog-rs.desktop, README.md, `src/app.rs`).
 
 - `assets/` holds the KRunner launcher template and the icon (hand-built SVG
   paths, no fonts — renders identically in any renderer).

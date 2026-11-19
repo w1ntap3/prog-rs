@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=prog-rs
-GenericName=Animated gradient
-Comment=Modern animated gradient box built with GPUI
+GenericName=Desktop app
+Comment=Minimal desktop app (work in progress)
 Exec=prog-rs
 Icon=prog-rs
 Terminal=false

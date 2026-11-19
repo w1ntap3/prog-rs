@@ -15,5 +15,5 @@ cargo install --path .
 prog-rs
 ```
 
-Launches a small window with an animated gradient — currently a placeholder
+Launches a maximized window with a left-side menu — a placeholder shell
 while the app's real identity is figured out.
