@@ -28,7 +28,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             version: VERSION,
-            sections: ["main", "finances", "appeal"]
+            sections: ["main", "finances", "appeal", "settings"]
                 .map(str::to_owned)
                 .to_vec(),
         }
@@ -72,19 +72,16 @@ impl Config {
     }
 
     /// Save to the default config location.
-    #[allow(dead_code, reason = "scaffold: will be wired to in-app config editing")]
     pub fn save(&self) -> Result<()> {
         self.save_to(&Self::file_path())
     }
 
     /// Write this config to an arbitrary destination for sharing.
-    #[allow(dead_code, reason = "scaffold: will be wired to in-app export/import")]
     pub fn export(&self, dest: &Path) -> Result<()> {
         self.save_to(dest)
     }
 
     /// Replace the live config with a file from elsewhere (validated first).
-    #[allow(dead_code, reason = "scaffold: will be wired to in-app export/import")]
     pub fn import(source: &Path) -> Result<Self> {
         let config = Self::load_from(source)?;
         config.save()?;
@@ -145,6 +142,34 @@ mod tests {
         custom.export(&path).unwrap();
         // load_from is the validation gate import() uses.
         assert_eq!(Config::load_from(&path).unwrap(), custom);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn import_replaces_live_config_file() {
+        let dir = temp_dir("live");
+        let previous = std::env::var_os("XDG_CONFIG_HOME");
+        // SAFETY: single-threaded effect, restored below; other tests never
+        // depend on the XDG value.
+        unsafe { std::env::set_var("XDG_CONFIG_HOME", &dir) };
+
+        let result = (|| {
+            let src = dir.join("incoming.toml");
+            let custom = Config {
+                version: VERSION,
+                sections: ["main", "tools"].map(str::to_owned).to_vec(),
+            };
+            custom.export(&src).unwrap();
+            let imported = Config::import(&src).unwrap();
+            assert_eq!(imported, custom);
+            assert_eq!(Config::load_from(&Config::file_path()).unwrap(), custom);
+        })();
+
+        match previous {
+            Some(value) => unsafe { std::env::set_var("XDG_CONFIG_HOME", value) },
+            None => unsafe { std::env::remove_var("XDG_CONFIG_HOME") },
+        };
+        let _ = result;
         fs::remove_dir_all(&dir).unwrap();
     }
 

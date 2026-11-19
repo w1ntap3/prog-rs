@@ -20,9 +20,11 @@ PATH as `prog-rs`.
 - **Always use SSH for GitHub, never HTTPS** (remote, git deps, clones alike).
 - **Never commit or push without explicit user approval.** Repo:
   `git@github.com:w1ntap3/prog-rs.git`.
-- **Every commit message must explain well what is happening and why** —
-  a precise subject plus a body describing the change and its reasoning,
-  not just a one-line label.
+- **Commit messages: `prefix: one concise sentence`** describing what was
+  done to the app. Prefix is a type (`feat`, `bugfix`, `perf`, `refactor`,
+  `docs`, `chore`) optionally scoped to a module (`config/feat:`,
+  `app/bugfix:`, ...) when the change centers on one. A slightly longer
+  sentence is fine for big updates; never bullet essays or bodies.
 - **Before every push, re-read the Architecture section of this file against
   the actual tree** — document new modules and decisions, drop stale ones.
   The push gate is only satisfied when the docs describe the app as it is.
@@ -76,7 +78,8 @@ Only these colors may appear in the UI; use the base (normal) variants first.
 ```
 src/
   main.rs     entry point: startup tuning -> load config -> open window
-  app.rs      root view: brand, nav (from config.sections), content placeholder
+  app.rs      root view: brand, nav (from config.sections); the `settings`
+              section renders the config/data export-import panel
   config.rs   app STRUCTURE config (sections), TOML, validated, export/import
   data.rs     personal DATA store: private dir, directory-tree export/import
   paths.rs    XDG dirs: ~/.config/prog-rs (config) vs ~/.local/share/prog-rs (data)
@@ -93,8 +96,13 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   created with defaults on first run (`~/.config/prog-rs/config.toml`).
 - Menu sections render from `config.sections` — adding a section later is a
   config edit, not a code change (content views will attach per section).
-- `data::export/import` (tree copy) and `Config::export/import` are scaffolded
-  with tests but not wired to UI actions yet — marked `#[allow(dead_code)]`.
+  A section named `settings` (`app::SETTINGS_SECTION`) gets the settings
+  panel instead of the placeholder.
+- Settings panel: config export/import are wired through gpui's portal file
+  pickers (`cx.prompt_for_new_path` / `cx.prompt_for_paths` — Zed's own Linux
+  path, verified against the running xdg-desktop-portal). `data::export/import`
+  exist and are tested but NOT wired to the UI yet — the data buttons show a
+  "not implemented yet" notice.
 - Window: maximized (restore size 960x600), Escape quits, last window closed
   quits. Font: 0xProto Nerd Font via fontconfig.
 

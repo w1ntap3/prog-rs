@@ -42,6 +42,7 @@ pub mod space {
     pub const CONTENT_TOP: f32 = 28.0;
     pub const TIGHT: f32 = 8.0;
     pub const KICKER_GAP: f32 = 6.0;
+    pub const GROUP_Y: f32 = 26.0;
 }
 
 /// Type scale.
