@@ -1,0 +1,14 @@
+[package]
+name = "prog-rs"
+version = "0.1.0"
+edition = "2024"
+description = "A minimal GPUI app showing an animated gradient in a 100x100 px box"
+license = "Apache-2.0"
+
+[dependencies]
+gpui = { git = "ssh://git@github.com/zed-industries/zed" }
+gpui_platform = { git = "ssh://git@github.com/zed-industries/zed", features = [
+    "font-kit",
+    "wayland",
+    "x11",
+] }

@@ -1,0 +1,5 @@
+# Use the system git CLI for fetching git dependencies. Required on machines
+# where SSH keys are configured for the git CLI (e.g. via ~/.ssh/config or an
+# insteadOf rule) but not exposed to libgit2/ssh-agent.
+[net]
+git-fetch-with-cli = true

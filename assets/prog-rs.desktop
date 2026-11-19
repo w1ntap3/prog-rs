@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=prog-rs
+GenericName=Animated gradient
+Comment=Modern animated gradient box built with GPUI
+Exec=prog-rs
+Icon=prog-rs
+Terminal=false
+Categories=Utility;
+Keywords=gradient;animation;gpui;demo;
+StartupWMClass=prog-rs

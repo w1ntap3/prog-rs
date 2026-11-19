@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- prog-rs monogram: Javid scheme, hand-built geometric wordmark -->
+  <defs>
+    <linearGradient id="prs" gradientUnits="userSpaceOnUse" x1="6" y1="0" x2="58" y2="0">
+      <stop offset="0" stop-color="#9FE37F"/>
+      <stop offset="1" stop-color="#B88AD9"/>
+    </linearGradient>
+  </defs>
+  <rect x="3.5" y="3.5" width="57" height="57" rx="14" fill="#0D120F" stroke="#354735" stroke-width="1.5"/>
+  <g fill="none" stroke="url(#prs)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <!-- P -->
+    <path d="M6,39 V25 h5 a3.5,3.5 0 0 1 0,7 h-5"/>
+    <!-- - -->
+    <path d="M21,32 H29"/>
+    <!-- R -->
+    <path d="M34,39 V25 h5 a3.5,3.5 0 0 1 0,7 h-5 M38.5,32 L44,39"/>
+    <!-- S -->
+    <path d="M55,27.5 Q55,25.5 51.5,25.5 Q47.5,25.5 47.5,28 Q47.5,30.5 51,31.2 Q55,32 55,35 Q55,38.5 51,38.5 Q47,38.5 47,36.5"/>
+  </g>
+</svg>
