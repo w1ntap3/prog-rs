@@ -3,20 +3,32 @@
 ## Project
 
 prog-rs — a [GPUI](https://gpui.rs) (Zed's GPU-accelerated UI framework) app.
-Currently a maximized shell with a left menu (sections: main, finances,
-appeal; "main" is the default page) and placeholder content; installs on
-PATH as `prog-rs`.
+It will become a personal life-metrics dashboard: turning the user's habits
+and goals into graphs and stats — how well he's saving money, staying off
+porn, losing weight, keeping up skincare, etc. Fully flexible/unbounded
+because the user builds it himself; structure still being figured out.
+`main` shows the big picture: current trajectory vs. the baseline "him who
+didn't focus on any of this" (e.g. "you wouldn't have saved X CZK, you'd
+weigh 10kg more, ..."). Sections (finances, appeal, ...) map to life areas.
+The shell, config/data stores and the finances section are implemented; other
+sections are still placeholders.
 
 ## Commands
 
 - Build: `cargo build --release`
 - Run: `cargo run`
 - Test: `cargo test`
-- Install on PATH: `cargo install --path .` (installs to `~/.cargo/bin/prog-rs`)
+- Install on PATH: `cargo install --path . --force` (installs to
+  `~/.cargo/bin/prog-rs`; `--force` is needed to replace the same version)
 - Install KDE launcher (KRunner entry + icon): `scripts/install-desktop-entry.sh`
 
 ## Workflow rules
 
+- **After every change, install a fresh build for KRunner.** Run
+  `cargo install --path . --force` before handing work back. The KDE
+  launcher's `Exec=` points at `~/.cargo/bin/prog-rs`, so without this
+  KRunner keeps launching the previous build. A change is not done until
+  KRunner launches it.
 - **Always use SSH for GitHub, never HTTPS** (remote, git deps, clones alike).
 - **Never commit or push without explicit user approval.** Repo:
   `git@github.com:w1ntap3/prog-rs.git`.
@@ -78,10 +90,21 @@ Only these colors may appear in the UI; use the base (normal) variants first.
 ```
 src/
   main.rs     entry point: startup tuning -> load config -> open window
-  app.rs      root view: brand, nav (from config.sections); the `settings`
-              section renders the config/data export-import panel
-  config.rs   app STRUCTURE config (sections), TOML, validated, export/import
+  app.rs      root view: brand, nav (from config.sections), per-tab settings,
+              and the single scrollable content area with custom scrollbar
+  config.rs   app STRUCTURE config: sections + shared currency rates, TOML,
+              validated, export/import
+  currency.rs Currency/Rates types plus shared decimal parsing/formatting
   data.rs     personal DATA store: private dir, directory-tree export/import
+  finances/
+    mod.rs    finance view: category/window toolbar, slideshow, chart,
+              window + correction panels, entry form, ledger
+    model.rs  v6 finances.toml: payout windows (category balances or combined),
+              transactions (expense/income, optional foreign currency),
+              manual balance corrections
+    stats.rs  per-window/category math: available money, average plan,
+              break-even/day, points, slideshow statements
+    graph.rs  custom-painted chart (actual + average plan) with hover readout
   paths.rs    XDG dirs: ~/.config/prog-rs (config) vs ~/.local/share/prog-rs (data)
   assets.rs   compile-time embedded assets (logo) via gpui AssetSource
   theme.rs    ALL design tokens: colors (Javid), geometry, spacing, type, weight
@@ -94,10 +117,25 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   exist), shareable. Data = user content, private, only moved by explicit
   user action. Both live under the app name in their XDG homes; config is
   created with defaults on first run (`~/.config/prog-rs/config.toml`).
-- Menu sections render from `config.sections` — adding a section later is a
-  config edit, not a code change (content views will attach per section).
-  A section named `settings` (`app::SETTINGS_SECTION`) gets the settings
-  panel instead of the placeholder.
+- Menu sections render from `config.sections`; adding a section is a config
+  edit, not a code change. A section named `settings`
+  (`app::SETTINGS_SECTION`) renders one settings block per configured section
+  (finances supplies currency conversion rates; others show an empty note).
+  `finances` (`app::FINANCES_SECTION`) is the only real content view so far.
+- Config vs data stays strict: currency rates live in `config.toml`, while
+  payout windows, transactions and balance corrections live in the private
+  `finances.toml` (data dir). Both have validated formats and export/import.
+- Finances: a window is a payout period with per-category balances
+  (nutrition/allowance) or a single `combined` balance. Transactions are
+  expense/income, optionally entered in CZK/EUR/AZN and converted to CZK at
+  entry time using the configured rates. Manual corrections store a CZK delta
+  at a timestamp so later points shift automatically. Chart draws the smooth
+  actual balance line and the straight average plan from the window's first income;
+  hovering shows minute-precision values for both. A single break-even/day
+  readout (`remaining / days left`) is the primary number.
+- Every tab's content lives in one shared vertical scroller with a custom
+  right-edge scrollbar that only paints when content overflows; it widens on
+  hover and is draggable. The sidebar list scrolls independently.
 - Settings panel: config export/import are wired through gpui's portal file
   pickers (`cx.prompt_for_new_path` / `cx.prompt_for_paths` — Zed's own Linux
   path, verified against the running xdg-desktop-portal). `data::export/import`
@@ -108,11 +146,9 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
 
 ## Notes
 
-- **App identity is a stub.** Names/descriptions like the KRunner
-  `GenericName`, the README blurb, and the desktop `Comment=`, plus the
-  placeholder "empty" content panes, are stand-ins. When the application
-  matures and gains its real purpose, update these to match it
-  (assets/prog-rs.desktop, README.md, `src/app.rs`).
+- **App identity: life-metrics dashboard.** The finances model is settled
+  enough to work with (windows, categories/combined, corrections, rates);
+  other life areas are still undecided, so keep their UI generic.
 
 - `assets/` holds the KRunner launcher template and the icon (hand-built SVG
   paths, no fonts — renders identically in any renderer).

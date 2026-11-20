@@ -11,6 +11,7 @@ use std::path::Path;
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
+use crate::currency::Rates;
 use crate::paths;
 
 pub const VERSION: u32 = 1;
@@ -22,6 +23,9 @@ pub struct Config {
     pub version: u32,
     /// Sections shown in the menu, in order. "main" first by convention.
     pub sections: Vec<String>,
+    /// Currency conversion rates shared by every section.
+    #[serde(default)]
+    pub rates: Rates,
 }
 
 impl Default for Config {
@@ -31,6 +35,7 @@ impl Default for Config {
             sections: ["main", "finances", "appeal", "settings"]
                 .map(str::to_owned)
                 .to_vec(),
+            rates: Rates::default(),
         }
     }
 }
@@ -92,6 +97,9 @@ impl Config {
         if self.version != VERSION {
             bail!("unsupported config version {} (expected {VERSION})", self.version);
         }
+        if !self.rates.is_valid() {
+            bail!("conversion rates must be finite and non-negative");
+        }
         if self.sections.is_empty() {
             bail!("config has no sections");
         }
@@ -138,6 +146,7 @@ mod tests {
         let custom = Config {
             version: VERSION,
             sections: ["main", "projects"].map(str::to_owned).to_vec(),
+            rates: Rates::default(),
         };
         custom.export(&path).unwrap();
         // load_from is the validation gate import() uses.
@@ -158,6 +167,7 @@ mod tests {
             let custom = Config {
                 version: VERSION,
                 sections: ["main", "tools"].map(str::to_owned).to_vec(),
+                rates: Rates::default(),
             };
             custom.export(&src).unwrap();
             let imported = Config::import(&src).unwrap();

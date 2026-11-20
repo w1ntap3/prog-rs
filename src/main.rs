@@ -1,7 +1,9 @@
 mod app;
 mod assets;
 mod config;
+mod currency;
 mod data;
+mod finances;
 mod paths;
 mod startup;
 mod theme;
@@ -45,7 +47,7 @@ fn main() {
                     ..Default::default()
                 },
                 |window, cx| {
-                    let root = cx.new(|cx| app::AppRoot::new(config.sections.clone(), cx));
+                    let root = cx.new(|cx| app::AppRoot::new(config.clone(), cx));
                     root.update(cx, |root, cx| root.focus(window, cx));
                     root
                 },
