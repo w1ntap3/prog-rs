@@ -24,6 +24,9 @@ pub const FINANCES_SECTION: &str = "finances";
 /// Section label that renders the relapse-free clock.
 pub const APPEAL_SECTION: &str = "appeal";
 
+/// Section label that renders the attendance calendar.
+pub const STUDY_SECTION: &str = "study";
+
 actions!(prog_rs, [Quit]);
 
 /// App-wide keybindings, bound by the shell in `main`.
@@ -1006,6 +1009,7 @@ impl AppRoot {
         let is_settings = label == SETTINGS_SECTION;
         let is_finances = label == FINANCES_SECTION;
         let is_appeal = label == APPEAL_SECTION;
+        let is_study = label == STUDY_SECTION;
         let is_main = label == "main";
         div()
             .w_full()
@@ -1060,6 +1064,14 @@ impl AppRoot {
                         .child(self.appeal.clone()),
                 )
             })
+            .when(is_study, |el| {
+                el.child(
+                    div()
+                        .mt(px(theme::space::TIGHT))
+                        .w_full()
+                        .child(self.study.clone()),
+                )
+            })
             .when(is_main, |el| {
                 el.child(
                     div()
@@ -1073,7 +1085,9 @@ impl AppRoot {
                         .child(self.main_block("appeal", self.appeal_clock(cx))),
                 )
             })
-            .when(!is_settings && !is_finances && !is_appeal && !is_main, |el| {
+            .when(
+                !is_settings && !is_finances && !is_appeal && !is_study && !is_main,
+                |el| {
                 el.child(
                     div()
                         .mt(px(4.))
