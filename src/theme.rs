@@ -115,8 +115,8 @@ pub mod type_scale {
     pub const HINT: f32 = 12.0;
     /// Big accent line in the slideshow.
     pub const STATEMENT: f32 = 30.0;
-    /// Relapse-free clock.
-    pub const CLOCK: f32 = 52.0;
+    /// Individual relapse-free clock segments.
+    pub const CLOCK_DIGIT: f32 = 38.0;
     /// Text field contents.
     pub const FIELD: f32 = 14.0;
     /// Ledger rows and other dense lists.

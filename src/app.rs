@@ -636,7 +636,9 @@ impl AppRoot {
 
     /// Informational relapse clock on `main`; resetting lives in the appeal tab.
     fn appeal_clock(&self, cx: &Context<Self>) -> impl IntoElement {
-        let clock = self.appeal.read(cx).clock_text();
+        let appeal = self.appeal.read(cx);
+        let fields = appeal.breakdown();
+        let since = appeal.since();
         div()
             .w_full()
             .flex()
@@ -651,13 +653,7 @@ impl AppRoot {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .child(
-                        div()
-                            .text_size(px(theme::type_scale::CLOCK))
-                            .font_weight(FontWeight(theme::weight::STATEMENT))
-                            .text_color(rgb(theme::color::ACCENT))
-                            .child(clock),
-                    ),
+                    .child(appeal::clock_view(fields, since)),
             )
     }
 

@@ -84,6 +84,7 @@ pub fn now_seconds() -> NaiveDateTime {
 }
 
 /// `MM:DD:HH:MM:SS` since `from`, using calendar months.
+#[allow(dead_code, reason = "kept for clock formatting tests")]
 pub fn format_elapsed(from: NaiveDateTime, to: NaiveDateTime) -> String {
     let (months, days, hours, minutes, seconds) = elapsed_breakdown(from, to);
     format!("{months:02}:{days:02}:{hours:02}:{minutes:02}:{seconds:02}")

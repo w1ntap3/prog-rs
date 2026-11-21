@@ -4,13 +4,13 @@ mod model;
 
 use std::time::Duration;
 
-use chrono::Local;
+use chrono::{Local, NaiveDateTime};
 use gpui::prelude::*;
 use gpui::{ClickEvent, Context, FontWeight, Render, Window, div, px, rgb};
 
 use crate::theme;
 
-use self::model::{AppealData, format_elapsed, now_seconds};
+use self::model::{AppealData, now_seconds};
 
 pub struct Appeal {
     data: AppealData,
@@ -75,14 +75,80 @@ impl Appeal {
         cx.notify();
     }
 
-    pub fn clock_text(&self) -> String {
-        format_elapsed(self.data.last_relapse, Local::now().naive_local())
+    pub fn breakdown(&self) -> (i64, i64, i64, i64, i64) {
+        model::elapsed_breakdown(self.data.last_relapse, Local::now().naive_local())
     }
+
+    pub fn since(&self) -> NaiveDateTime {
+        self.data.last_relapse
+    }
+}
+
+/// Shared clock body used by the appeal tab and the informational copy on main.
+pub fn clock_view(
+    (months, days, hours, minutes, seconds): (i64, i64, i64, i64, i64),
+    since: NaiveDateTime,
+) -> impl IntoElement {
+    let cell = |value: i64, label: &'static str| {
+        div()
+            .flex()
+            .flex_col()
+            .items_center()
+            .gap(px(theme::space::DOT_GAP))
+            .child(
+                div()
+                    .text_size(px(theme::type_scale::CLOCK_DIGIT))
+                    .font_weight(FontWeight(theme::weight::STATEMENT))
+                    .text_color(rgb(theme::color::ACCENT))
+                    .child(format!("{value:02}")),
+            )
+            .child(
+                div()
+                    .text_size(px(theme::type_scale::MINI))
+                    .text_color(rgb(theme::color::MUTED))
+                    .child(label),
+            )
+    };
+
+    div()
+        .flex()
+        .flex_col()
+        .items_center()
+        .gap(px(theme::space::TIGHT))
+        .child(
+            div()
+                .text_size(px(theme::type_scale::KICKER))
+                .text_color(rgb(theme::color::SEA_GREEN))
+                .child("RELAPSE-FREE"),
+        )
+        .child(
+            div()
+                .text_size(px(theme::type_scale::MINI))
+                .text_color(rgb(theme::color::MUTED))
+                .child(format!("since {}", since.format("%d-%b-%Y %H:%M"))),
+        )
+        .child(
+            div()
+                .mt(px(theme::space::TIGHT))
+                .flex()
+                .items_end()
+                .justify_center()
+                .gap(px(theme::space::TIGHT))
+                .child(cell(months, "MONTHS"))
+                .child(cell(days, "DAYS"))
+                .child(cell(hours, "HOURS"))
+                .child(cell(minutes, "MINUTES"))
+                .child(cell(seconds, "SECONDS")),
+        )
 }
 
 impl Render for Appeal {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let clock = format_elapsed(self.data.last_relapse, Local::now().naive_local());
+        let fields = model::elapsed_breakdown(
+            self.data.last_relapse,
+            Local::now().naive_local(),
+        );
+        let since = self.data.last_relapse;
 
         div()
             .w_full()
@@ -102,13 +168,7 @@ impl Render for Appeal {
                     .items_center()
                     .justify_center()
                     .gap(px(theme::space::GROUP_Y))
-                    .child(
-                        div()
-                            .text_size(px(theme::type_scale::CLOCK))
-                            .font_weight(FontWeight(theme::weight::STATEMENT))
-                            .text_color(rgb(theme::color::ACCENT))
-                            .child(clock),
-                    )
+                    .child(clock_view(fields, since))
                     .child(
                         div()
                             .id("appeal-reset")

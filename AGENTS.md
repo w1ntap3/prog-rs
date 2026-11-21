@@ -150,10 +150,12 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   allowance options for the current window.
 - Appeal stores only `last_relapse` in `appeal.toml` and derives a
   `MM:DD:HH:MM:SS` clock (calendar months, then days/hours/minutes/seconds) in
-  the UI. The appeal tab is a centered square clock with a `RESET CLOCK`
-  button; resetting is confirmed through `modal.rs`, which dims the whole app
-  and where Escape cancels instead of quitting. `main` shows the same clock
-  without the reset control.
+  the UI. The appeal tab is a centered square panel with a `RELAPSE-FREE`
+  header, the last-relapse timestamp, five labeled segments
+  (months/days/hours/minutes/seconds) and a `RESET CLOCK` button; resetting is
+  confirmed through `modal.rs`, which dims the whole app and where Escape
+  cancels instead of quitting. `main` shows the same clock without the reset
+  control.
 - `main` groups every section summary under an explicit section label (for now
   FINANCES and APPEAL) via `AppRoot::main_block`, separated by hairlines. New
   sections with a main summary must be added there so ownership stays obvious.
