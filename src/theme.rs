@@ -66,6 +66,8 @@ pub mod geometry {
     pub const LEGEND_W: f32 = 14.0;
     /// Confirmation dialog width.
     pub const MODAL_W: f32 = 440.0;
+    /// Appeal clock square.
+    pub const CLOCK_BOX: f32 = 360.0;
     /// Chart hover tooltip.
     pub const HOVER_TOOLTIP_W: f32 = 230.0;
     pub const HOVER_TOOLTIP_H: f32 = 96.0;

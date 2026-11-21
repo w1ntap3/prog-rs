@@ -75,30 +75,33 @@ impl Appeal {
         cx.notify();
     }
 
-    fn kicker(text: &'static str) -> impl IntoElement {
-        div()
-            .text_size(px(theme::type_scale::KICKER))
-            .text_color(rgb(theme::color::SEA_GREEN))
-            .child(text.to_uppercase())
+    pub fn clock_text(&self) -> String {
+        format_elapsed(self.data.last_relapse, Local::now().naive_local())
     }
 }
 
 impl Render for Appeal {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let now = Local::now().naive_local();
-        let clock = format_elapsed(self.data.last_relapse, now);
+        let clock = format_elapsed(self.data.last_relapse, Local::now().naive_local());
 
         div()
             .w_full()
             .flex()
             .flex_col()
-            .gap(px(theme::space::GROUP_Y))
+            .items_center()
+            .gap(px(theme::space::TIGHT))
+            .pt(px(theme::space::GROUP_Y))
             .child(
                 div()
+                    .w(px(theme::geometry::CLOCK_BOX))
+                    .h(px(theme::geometry::CLOCK_BOX))
+                    .border_1()
+                    .border_color(rgb(theme::color::SURFACE))
                     .flex()
                     .flex_col()
-                    .gap(px(theme::space::TIGHT))
-                    .child(Self::kicker("since last relapse"))
+                    .items_center()
+                    .justify_center()
+                    .gap(px(theme::space::GROUP_Y))
                     .child(
                         div()
                             .text_size(px(theme::type_scale::CLOCK))
@@ -106,39 +109,6 @@ impl Render for Appeal {
                             .text_color(rgb(theme::color::ACCENT))
                             .child(clock),
                     )
-                    .child(
-                        div()
-                            .text_size(px(theme::type_scale::MINI))
-                            .text_color(rgb(theme::color::MUTED))
-                            .child("months : days : hours : minutes : seconds"),
-                    ),
-            )
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(theme::space::DOT_GAP))
-                    .child(
-                        div()
-                            .text_size(px(theme::type_scale::HINT))
-                            .text_color(rgb(theme::color::MUTED))
-                            .child(format!(
-                                "last relapse {}",
-                                self.data.last_relapse.format("%d-%b-%Y %H:%M:%S")
-                            )),
-                    )
-                    .child(
-                        div()
-                            .text_size(px(theme::type_scale::MINI))
-                            .text_color(rgb(theme::color::MUTED))
-                            .child("the counter updates every second"),
-                    ),
-            )
-            .child(
-                div()
-                    .pt(px(theme::space::TIGHT))
-                    .border_t_1()
-                    .border_color(rgb(theme::color::SURFACE))
                     .child(
                         div()
                             .id("appeal-reset")
@@ -152,7 +122,7 @@ impl Render for Appeal {
                             .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
                                 this.request_reset(cx)
                             }))
-                            .child("record relapse / reset clock"),
+                            .child("RESET CLOCK"),
                     ),
             )
             .when_some(self.status.clone(), |el, status| {

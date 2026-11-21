@@ -100,7 +100,7 @@ impl AppRoot {
     pub fn new(config: config::Config, cx: &mut Context<Self>) -> Self {
         debug_assert!(!config.sections.is_empty(), "config guarantees non-empty sections");
         let rates = config.rates;
-        Self {
+        let this = Self {
             eur_rate: currency::rate_string(rates.eur),
             azn_rate: currency::rate_string(rates.azn),
             finances: cx.new(move |cx| finances::Finances::new(rates, cx)),
@@ -116,7 +116,23 @@ impl AppRoot {
             scrollbar_drag: None,
             home_slide: 0,
             home_view: HomeView::Combined,
-        }
+        };
+        this.start_main_tick(cx);
+        this
+    }
+
+    /// Keeps the informational appeal clock on `main` ticking.
+    fn start_main_tick(&self, cx: &mut Context<Self>) {
+        cx.spawn(async move |this, cx| loop {
+            cx.background_executor()
+                .timer(Duration::from_secs(1))
+                .await;
+            let alive = this.update(cx, |_, cx| cx.notify()).is_ok();
+            if !alive {
+                break;
+            }
+        })
+        .detach();
     }
 
     pub fn focus(&self, window: &mut Window, cx: &mut Context<Self>) {
@@ -605,6 +621,46 @@ impl AppRoot {
         ))
     }
 
+    fn main_block(&self, title: &'static str, child: impl IntoElement) -> impl IntoElement {
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(theme::space::TIGHT))
+            .pt(px(theme::space::TIGHT))
+            .border_t_1()
+            .border_color(rgb(theme::color::SURFACE))
+            .child(Self::group_label(title))
+            .child(child)
+    }
+
+    /// Informational relapse clock on `main`; resetting lives in the appeal tab.
+    fn appeal_clock(&self, cx: &Context<Self>) -> impl IntoElement {
+        let clock = self.appeal.read(cx).clock_text();
+        div()
+            .w_full()
+            .flex()
+            .justify_center()
+            .pt(px(theme::space::TIGHT))
+            .child(
+                div()
+                    .w(px(theme::geometry::CLOCK_BOX))
+                    .h(px(theme::geometry::CLOCK_BOX))
+                    .border_1()
+                    .border_color(rgb(theme::color::SURFACE))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        div()
+                            .text_size(px(theme::type_scale::CLOCK))
+                            .font_weight(FontWeight(theme::weight::STATEMENT))
+                            .text_color(rgb(theme::color::ACCENT))
+                            .child(clock),
+                    ),
+            )
+    }
+
     fn home_tab(&self, view: HomeView, cx: &Context<Self>) -> impl IntoElement {
         let selected = self.home_view == view;
         div()
@@ -882,7 +938,11 @@ impl AppRoot {
                     div()
                         .mt(px(theme::space::TIGHT))
                         .w_full()
-                        .child(self.home(cx)),
+                        .flex()
+                        .flex_col()
+                        .gap(px(theme::space::GROUP_Y))
+                        .child(self.main_block("finances", self.home(cx)))
+                        .child(self.main_block("appeal", self.appeal_clock(cx))),
                 )
             })
             .when(!is_settings && !is_finances && !is_appeal && !is_main, |el| {
