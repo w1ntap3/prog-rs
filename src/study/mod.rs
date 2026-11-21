@@ -4,15 +4,17 @@
 mod model;
 mod schedule;
 
+use std::rc::Rc;
 use std::time::Duration;
 
-use chrono::{Datelike, Local, NaiveDate, NaiveDateTime};
+use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
 use gpui::prelude::*;
 use gpui::{
-    Animation, AnimationExt, AnyElement, ClickEvent, Context, FontWeight, KeyDownEvent, Render,
-    Window, div, px, rgb,
+    Animation, AnimationExt, AnyElement, ClickEvent, Context, FontWeight, KeyDownEvent, Point,
+    Render, Window, div, point, px, rgb,
 };
 
+use crate::datetime_picker;
 use crate::theme;
 
 use self::model::{Assessment, Assignment, Attendance, StudyData};
@@ -51,16 +53,25 @@ enum Panel {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Field {
     AssignmentName,
-    AssignmentDeadline,
     AssessmentName,
-    AssessmentWhen,
+}
+
+/// Which entry's date/time the picker is editing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Target {
+    Assignment,
+    Assessment,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Picker {
+    Date(Target),
+    Time(Target),
 }
 
 struct FocusHandles {
     assignment_name: gpui::FocusHandle,
-    assignment: gpui::FocusHandle,
     assessment_name: gpui::FocusHandle,
-    assessment: gpui::FocusHandle,
 }
 
 pub struct Study {
@@ -71,9 +82,12 @@ pub struct Study {
     assessment_subject: String,
     assignment_name: String,
     assessment_name: String,
-    assignment_deadline: String,
-    assessment_when: String,
+    assignment_at: NaiveDateTime,
+    assessment_at: NaiveDateTime,
     open_subject: Option<Panel>,
+    picker: Option<Picker>,
+    picker_anchor: Point<gpui::Pixels>,
+    cal_month: NaiveDate,
     focus: FocusHandles,
 }
 
@@ -98,7 +112,7 @@ impl Study {
         };
         let subjects = schedule::subjects();
         let default_subject = subjects.first().copied().unwrap_or("PRS").to_owned();
-        let now = Local::now().naive_local().format("%Y-%m-%d %H:%M").to_string();
+        let now = Local::now().naive_local();
         let this = Self {
             data,
             week,
@@ -107,14 +121,15 @@ impl Study {
             assessment_subject: default_subject,
             assignment_name: String::new(),
             assessment_name: String::new(),
-            assignment_deadline: now.clone(),
-            assessment_when: now,
+            assignment_at: now,
+            assessment_at: now,
             open_subject: None,
+            picker: None,
+            picker_anchor: point(px(0.), px(0.)),
+            cal_month: datetime_picker::first_of_month(now.date()),
             focus: FocusHandles {
                 assignment_name: cx.focus_handle(),
-                assignment: cx.focus_handle(),
                 assessment_name: cx.focus_handle(),
-                assessment: cx.focus_handle(),
             },
         };
         this.start_tick(cx);
@@ -158,27 +173,21 @@ impl Study {
     fn field_value(&self, field: Field) -> &str {
         match field {
             Field::AssignmentName => &self.assignment_name,
-            Field::AssignmentDeadline => &self.assignment_deadline,
             Field::AssessmentName => &self.assessment_name,
-            Field::AssessmentWhen => &self.assessment_when,
         }
     }
 
     fn field_value_mut(&mut self, field: Field) -> &mut String {
         match field {
             Field::AssignmentName => &mut self.assignment_name,
-            Field::AssignmentDeadline => &mut self.assignment_deadline,
             Field::AssessmentName => &mut self.assessment_name,
-            Field::AssessmentWhen => &mut self.assessment_when,
         }
     }
 
     fn focus_handle(&self, field: Field) -> &gpui::FocusHandle {
         match field {
             Field::AssignmentName => &self.focus.assignment_name,
-            Field::AssignmentDeadline => &self.focus.assignment,
             Field::AssessmentName => &self.focus.assessment_name,
-            Field::AssessmentWhen => &self.focus.assessment,
         }
     }
 
@@ -198,18 +207,16 @@ impl Study {
         let key = event.keystroke.key.as_str();
         if key == "tab" {
             let next = match field {
-                Field::AssignmentName => Field::AssignmentDeadline,
-                Field::AssignmentDeadline => Field::AssessmentName,
-                Field::AssessmentName => Field::AssessmentWhen,
-                Field::AssessmentWhen => Field::AssignmentName,
+                Field::AssignmentName => Field::AssessmentName,
+                Field::AssessmentName => Field::AssignmentName,
             };
             self.focus_field(next, window, cx);
             return;
         }
         if key == "enter" {
             match field {
-                Field::AssignmentName | Field::AssignmentDeadline => self.add_assignment(cx),
-                Field::AssessmentName | Field::AssessmentWhen => self.add_assessment(cx),
+                Field::AssignmentName => self.add_assignment(cx),
+                Field::AssessmentName => self.add_assessment(cx),
             }
             return;
         }
@@ -229,15 +236,8 @@ impl Study {
         let Some(chars) = event.keystroke.key_char.as_deref() else {
             return;
         };
-        let datetime = matches!(field, Field::AssignmentDeadline | Field::AssessmentWhen);
-        if !datetime
-            || chars
-                .chars()
-                .all(|c| c.is_ascii_digit() || c == '-' || c == ':' || c == ' ')
-        {
-            self.field_value_mut(field).push_str(chars);
-            cx.notify();
-        }
+        self.field_value_mut(field).push_str(chars);
+        cx.notify();
     }
 
     fn toggle_subject(&mut self, panel: Panel, cx: &mut Context<Self>) {
@@ -265,12 +265,76 @@ impl Study {
         cx.notify();
     }
 
+    fn datetime(&self, target: Target) -> NaiveDateTime {
+        match target {
+            Target::Assignment => self.assignment_at,
+            Target::Assessment => self.assessment_at,
+        }
+    }
+
+    fn set_datetime(&mut self, target: Target, value: NaiveDateTime) {
+        match target {
+            Target::Assignment => self.assignment_at = value,
+            Target::Assessment => self.assessment_at = value,
+        }
+    }
+
+    fn toggle_datetime_picker(
+        &mut self,
+        target: Target,
+        position: Point<gpui::Pixels>,
+        cx: &mut Context<Self>,
+    ) {
+        let active = matches!(
+            self.picker,
+            Some(Picker::Date(active) | Picker::Time(active)) if active == target
+        );
+        if active {
+            self.picker = None;
+        } else {
+            self.cal_month = datetime_picker::first_of_month(self.datetime(target).date());
+            self.picker_anchor = position;
+            self.picker = Some(Picker::Date(target));
+        }
+        cx.notify();
+    }
+
+    fn choose_date(&mut self, target: Target, date: NaiveDate, cx: &mut Context<Self>) {
+        let time = self.datetime(target).time();
+        self.set_datetime(target, date.and_time(time));
+        self.cal_month = datetime_picker::first_of_month(date);
+        // Straight into the time step so a full value needs no second click.
+        self.picker = Some(Picker::Time(target));
+        cx.notify();
+    }
+
+    fn choose_hour(&mut self, target: Target, hour: u32, cx: &mut Context<Self>) {
+        let minute = self.datetime(target).minute();
+        let time = NaiveTime::from_hms_opt(hour, minute, 0).expect("hour and minute are valid");
+        self.set_datetime(target, self.datetime(target).date().and_time(time));
+        cx.notify();
+    }
+
+    fn choose_minute(&mut self, target: Target, minute: u32, cx: &mut Context<Self>) {
+        let hour = self.datetime(target).hour();
+        let time = NaiveTime::from_hms_opt(hour, minute, 0).expect("hour and minute are valid");
+        self.set_datetime(target, self.datetime(target).date().and_time(time));
+        self.picker = None;
+        cx.notify();
+    }
+
+    fn shift_calendar(&mut self, delta: i32, cx: &mut Context<Self>) {
+        self.cal_month = datetime_picker::add_months(self.cal_month, delta);
+        cx.notify();
+    }
+
+    fn close_picker(&mut self, cx: &mut Context<Self>) {
+        self.picker = None;
+        cx.notify();
+    }
+
     fn add_assignment(&mut self, cx: &mut Context<Self>) {
-        let Some(deadline) = Self::parse_datetime(&self.assignment_deadline) else {
-            self.status = Some("deadline must be YYYY-MM-DD HH:MM".into());
-            cx.notify();
-            return;
-        };
+        let deadline = self.assignment_at;
         let name = self.assignment_name.trim().to_owned();
         if name.is_empty() {
             self.status = Some("give the assignment a name first".into());
@@ -283,17 +347,14 @@ impl Study {
             deadline,
         });
         self.assignment_name.clear();
-        self.assignment_deadline = Local::now().naive_local().format("%Y-%m-%d %H:%M").to_string();
+        self.assignment_at = Local::now().naive_local();
         self.open_subject = None;
+        self.picker = None;
         self.persist(cx);
     }
 
     fn add_assessment(&mut self, cx: &mut Context<Self>) {
-        let Some(when) = Self::parse_datetime(&self.assessment_when) else {
-            self.status = Some("time must be YYYY-MM-DD HH:MM".into());
-            cx.notify();
-            return;
-        };
+        let when = self.assessment_at;
         let name = self.assessment_name.trim().to_owned();
         if name.is_empty() {
             self.status = Some("give the assessment a name first".into());
@@ -306,13 +367,10 @@ impl Study {
             when,
         });
         self.assessment_name.clear();
-        self.assessment_when = Local::now().naive_local().format("%Y-%m-%d %H:%M").to_string();
+        self.assessment_at = Local::now().naive_local();
         self.open_subject = None;
+        self.picker = None;
         self.persist(cx);
-    }
-
-    fn parse_datetime(raw: &str) -> Option<NaiveDateTime> {
-        NaiveDateTime::parse_from_str(raw.trim(), "%Y-%m-%d %H:%M").ok()
     }
 
     fn persist(&mut self, cx: &mut Context<Self>) {
@@ -503,12 +561,13 @@ impl Study {
             .w_full()
             .px(px(theme::space::FIELD_X))
             .py(px(theme::space::FIELD_Y))
-            .border_b_1()
+            .border_1()
             .border_color(rgb(if focused {
                 theme::color::ACCENT
             } else {
                 theme::color::SURFACE
             }))
+            .bg(rgb(theme::color::SURFACE).alpha(0.12))
             .flex()
             .items_center()
             .text_size(px(theme::type_scale::FIELD))
@@ -541,22 +600,113 @@ impl Study {
             })
     }
 
+    fn datetime_button(&self, target: Target, cx: &Context<Self>) -> impl IntoElement {
+        let open = matches!(
+            self.picker,
+            Some(Picker::Date(active) | Picker::Time(active)) if active == target
+        );
+        let at = self.datetime(target);
+        div()
+            .id(format!("study-datetime-{target:?}"))
+            .flex_1()
+            .min_w_0()
+            .flex()
+            .items_center()
+            .justify_between()
+            .gap(px(theme::space::TIGHT))
+            .px(px(theme::space::FIELD_X))
+            .py(px(theme::space::FIELD_Y))
+            .border_1()
+            .border_color(rgb(if open {
+                theme::color::ACCENT
+            } else {
+                theme::color::SURFACE
+            }))
+            .bg(rgb(theme::color::SURFACE).alpha(0.12))
+            .text_size(px(theme::type_scale::FIELD))
+            .text_color(rgb(theme::color::FOREGROUND))
+            .cursor_pointer()
+            .hover(|style| style.text_color(rgb(theme::color::ACCENT)))
+            .on_click(cx.listener(move |this, event: &ClickEvent, _, cx| {
+                this.toggle_datetime_picker(target, event.position(), cx)
+            }))
+            .child(at.format("%d-%b-%Y").to_string())
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(theme::space::DOT_GAP))
+                    .child(
+                        div()
+                            .text_color(rgb(theme::color::ACCENT))
+                            .child(at.format("%H:%M").to_string()),
+                    )
+                    .child(
+                        div()
+                            .text_color(rgb(theme::color::MUTED))
+                            .child("▾"),
+                    ),
+            )
+    }
+
+    fn picker_backdrop(
+        &self,
+        window: &Window,
+        cx: &Context<Self>,
+    ) -> Option<AnyElement> {
+        self.picker.map(|_| {
+            datetime_picker::backdrop(
+                window,
+                "study-picker-backdrop",
+                cx,
+                Rc::new(|this: &mut Self, cx: &mut Context<Self>| this.close_picker(cx)),
+            )
+        })
+    }
+
+    fn picker_overlay(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        self.picker.map(|picker| match picker {
+            Picker::Date(target) => datetime_picker::overlay(
+                self.picker_anchor,
+                datetime_picker::calendar(
+                    self.cal_month,
+                    self.datetime(target).date(),
+                    "study-calendar",
+                    cx,
+                    Rc::new(|this: &mut Self, delta, cx| this.shift_calendar(delta, cx)),
+                    Rc::new(move |this: &mut Self, date, cx| this.choose_date(target, date, cx)),
+                ),
+            ),
+            Picker::Time(target) => datetime_picker::overlay(
+                self.picker_anchor,
+                datetime_picker::time_panel(
+                    self.datetime(target).time(),
+                    "study-time",
+                    cx,
+                    Rc::new(move |this: &mut Self, hour, cx| this.choose_hour(target, hour, cx)),
+                    Rc::new(move |this: &mut Self, minute, cx| {
+                        this.choose_minute(target, minute, cx)
+                    }),
+                    Rc::new(|this: &mut Self, cx| this.close_picker(cx)),
+                ),
+            ),
+        })
+    }
+
     fn list_panel(
         &self,
         panel: Panel,
         window: &Window,
         cx: &Context<Self>,
     ) -> impl IntoElement {
-        let (title, hint, field, entries): (
+        let (title, hint, entries): (
             &'static str,
             &'static str,
-            Field,
             Vec<(usize, String, String, NaiveDateTime)>,
         ) = match panel {
             Panel::Assignments => (
                 "ASSIGNMENTS",
-                "deadline · YYYY-MM-DD HH:MM",
-                Field::AssignmentDeadline,
+                "deadline · pick a date, then a time",
                 self.data
                     .assignments
                     .iter()
@@ -573,8 +723,7 @@ impl Study {
             ),
             Panel::Assessments => (
                 "ASSESSMENTS",
-                "when it is · YYYY-MM-DD HH:MM",
-                Field::AssessmentWhen,
+                "when it is · pick a date, then a time",
                 self.data
                     .assessments
                     .iter()
@@ -595,6 +744,10 @@ impl Study {
         let empty = entries.is_empty();
         let subject = self.subject(panel).to_owned();
         let open = self.open_subject == Some(panel);
+        let target = match panel {
+            Panel::Assignments => Target::Assignment,
+            Panel::Assessments => Target::Assessment,
+        };
 
         div()
             .flex_1()
@@ -633,12 +786,13 @@ impl Study {
                             .w(px(theme::geometry::SUBJECT_W))
                             .px(px(theme::space::FIELD_X))
                             .py(px(theme::space::FIELD_Y))
-                            .border_b_1()
+                            .border_1()
                             .border_color(rgb(if open {
                                 theme::color::ACCENT
                             } else {
                                 theme::color::SURFACE
                             }))
+                            .bg(rgb(theme::color::SURFACE).alpha(0.12))
                             .text_size(px(theme::type_scale::FIELD))
                             .text_color(rgb(theme::color::FOREGROUND))
                             .cursor_pointer()
@@ -648,11 +802,7 @@ impl Study {
                             }))
                             .child(format!("{subject} ▾")),
                     )
-                    .child(
-                        div()
-                            .w(px(theme::geometry::FIELD_AMOUNT_W))
-                            .child(self.text_field(field, "", window, cx)),
-                    )
+                    .child(self.datetime_button(target, cx))
                     .child(
                         div()
                             .id(format!("study-add-{panel:?}"))
@@ -1123,5 +1273,7 @@ impl Render for Study {
                         .child(status),
                 )
             })
+            .children(self.picker_backdrop(window, cx))
+            .children(self.picker_overlay(cx))
     }
 }

@@ -4,6 +4,7 @@ mod assets;
 mod config;
 mod currency;
 mod data;
+mod datetime_picker;
 mod finances;
 mod modal;
 mod paths;
