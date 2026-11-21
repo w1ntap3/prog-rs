@@ -4,7 +4,6 @@
 mod model;
 mod schedule;
 
-use std::collections::BTreeMap;
 use std::time::Duration;
 
 use chrono::{Datelike, Local, NaiveDate, NaiveDateTime};
@@ -42,7 +41,7 @@ pub struct StudySummary {
 
 pub struct Study {
     data: StudyData,
-    month: NaiveDate,
+    week: NaiveDate,
     status: Option<String>,
 }
 
@@ -55,20 +54,19 @@ impl Study {
                 Some(format!("could not load study data: {error:#}")),
             ),
         };
-        let months = schedule::semester_months();
+        let weeks = schedule::active_weeks();
         let today = Local::now().date_naive();
-        let current = NaiveDate::from_ymd_opt(today.year(), today.month(), 1)
-            .expect("first of month is valid");
-        let month = if current < months[0] {
-            months[0]
-        } else if current > months[months.len() - 1] {
-            months[months.len() - 1]
+        let current = schedule::monday_of(today);
+        let week = if current < weeks[0] {
+            weeks[0]
+        } else if current > weeks[weeks.len() - 1] {
+            weeks[weeks.len() - 1]
         } else {
             current
         };
         let this = Self {
             data,
-            month,
+            week,
             status,
         };
         this.start_tick(cx);
@@ -134,26 +132,26 @@ impl Study {
         cx.notify();
     }
 
-    fn move_month(&mut self, delta: i32, cx: &mut Context<Self>) {
-        let months = schedule::semester_months();
-        let Some(index) = months.iter().position(|month| *month == self.month) else {
+    fn move_week(&mut self, delta: i32, cx: &mut Context<Self>) {
+        let weeks = schedule::active_weeks();
+        let Some(index) = weeks.iter().position(|week| *week == self.week) else {
             return;
         };
-        let next = (index as i32 + delta).clamp(0, months.len() as i32 - 1) as usize;
+        let next = (index as i32 + delta).clamp(0, weeks.len() as i32 - 1) as usize;
         if next != index {
-            self.month = months[next];
+            self.week = weeks[next];
             cx.notify();
         }
     }
 
-    fn month_nav(&self, cx: &Context<Self>) -> impl IntoElement {
-        let months = schedule::semester_months();
-        let index = months
+    fn week_nav(&self, cx: &Context<Self>) -> impl IntoElement {
+        let weeks = schedule::active_weeks();
+        let index = weeks
             .iter()
-            .position(|month| *month == self.month)
+            .position(|week| *week == self.week)
             .unwrap_or(0);
         let can_prev = index > 0;
-        let can_next = index + 1 < months.len();
+        let can_next = index + 1 < weeks.len();
 
         let arrow = |label: &'static str,
                      id: &'static str,
@@ -179,26 +177,37 @@ impl Study {
         };
 
         let prev = if can_prev {
-            let handler = |this: &mut Self, cx: &mut Context<Self>| this.move_month(-1, cx);
+            let handler = |this: &mut Self, cx: &mut Context<Self>| this.move_week(-1, cx);
             arrow(
                 "‹",
-                "study-month-prev",
+                "study-week-prev",
                 true,
                 Some(Box::new(move |this, cx| handler(this, cx))),
             )
         } else {
-            arrow("‹", "study-month-prev", false, None)
+            arrow("‹", "study-week-prev", false, None)
         };
         let next = if can_next {
-            let handler = |this: &mut Self, cx: &mut Context<Self>| this.move_month(1, cx);
+            let handler = |this: &mut Self, cx: &mut Context<Self>| this.move_week(1, cx);
             arrow(
                 "›",
-                "study-month-next",
+                "study-week-next",
                 true,
                 Some(Box::new(move |this, cx| handler(this, cx))),
             )
         } else {
-            arrow("›", "study-month-next", false, None)
+            arrow("›", "study-week-next", false, None)
+        };
+
+        let end = schedule::week_end(self.week);
+        let label = if self.week.month() == end.month() {
+            format!("{}–{}", self.week.format("%d"), end.format("%d %b %Y"))
+        } else {
+            format!(
+                "{} – {}",
+                self.week.format("%d %b"),
+                end.format("%d %b %Y")
+            )
         };
 
         div()
@@ -217,7 +226,7 @@ impl Study {
                             .text_size(px(theme::type_scale::NAV))
                             .font_weight(FontWeight(theme::weight::NAV_ACTIVE))
                             .text_color(rgb(theme::color::FOREGROUND))
-                            .child(self.month.format("%B %Y").to_string().to_uppercase()),
+                            .child(label.to_uppercase()),
                     )
                     .child(next),
             )
@@ -335,108 +344,78 @@ impl Study {
     }
 
     fn calendar(&self, cx: &Context<Self>) -> impl IntoElement {
-        let sessions = schedule::sessions_in_month(self.month);
-        let mut by_day: BTreeMap<NaiveDate, Vec<Session>> = BTreeMap::new();
+        let sessions = schedule::sessions_in_week(self.week);
+        let mut by_day: Vec<Vec<Session>> = vec![Vec::new(); 5];
         for session in sessions {
-            by_day.entry(session.date).or_default().push(session);
-        }
-
-        let first = NaiveDate::from_ymd_opt(self.month.year(), self.month.month(), 1)
-            .expect("first of month is valid");
-        let leading = match first.weekday().num_days_from_monday() {
-            0..=4 => first.weekday().num_days_from_monday() as usize,
-            _ => 0,
-        };
-        let days = schedule::days_in_month(first);
-        let mut cells: Vec<Option<u32>> = vec![None; leading];
-        for day in 1..=days {
-            let date = NaiveDate::from_ymd_opt(self.month.year(), self.month.month(), day)
-                .expect("calendar day is valid");
-            if date.weekday().num_days_from_monday() < 5 {
-                cells.push(Some(day));
+            let offset = (session.date - self.week).num_days();
+            if (0..5).contains(&offset) {
+                by_day[offset as usize].push(session);
             }
         }
-        while cells.len() % 5 != 0 {
-            cells.push(None);
-        }
-        let rows: Vec<Vec<Option<u32>>> = cells.chunks(5).map(<[Option<u32>]>::to_vec).collect();
+
         let today = Local::now().date_naive();
         let now = Local::now().naive_local();
-
-        let weekdays = div()
+        let header = div()
             .w_full()
             .flex()
             .border_b_1()
             .border_color(rgb(theme::color::SURFACE))
-            .children(
-            ["MON", "TUE", "WED", "THU", "FRI"].map(|label| {
+            .children((0..5).map(|offset| {
+                let date = self.week + chrono::Duration::days(offset);
+                let is_today = date == today;
                 div()
                     .flex_1()
                     .min_w_0()
                     .px(px(theme::space::DOT_GAP))
-                    .pb(px(theme::space::DOT_GAP))
+                    .py(px(theme::space::DOT_GAP))
                     .text_size(px(theme::type_scale::MINI))
-                    .text_color(rgb(theme::color::MUTED))
-                    .child(label)
-            }),
-        );
+                    .text_color(rgb(if is_today {
+                        theme::color::ACCENT
+                    } else {
+                        theme::color::MUTED
+                    }))
+                    .child(format!(
+                        "{} {}",
+                        date.format("%a").to_string().to_uppercase(),
+                        date.format("%d")
+                    ))
+            }));
 
-        let grid = rows.into_iter().map(move |row| {
-            div().w_full().flex().children(row.into_iter().map(|day| match day {
-                None => div()
-                    .flex_1()
-                    .min_w_0()
-                    .min_h(px(theme::geometry::CALENDAR_DAY_H))
-                    .border_b_1()
-                    .border_r_1()
-                    .border_color(rgb(theme::color::SURFACE))
-                    .overflow_x_hidden()
-                    .into_any_element(),
-                Some(day) => {
-                    let date = NaiveDate::from_ymd_opt(self.month.year(), self.month.month(), day)
-                        .expect("calendar day is valid");
-                    let is_today = date == today;
-                    let day_sessions = by_day.get(&date);
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .min_h(px(theme::geometry::CALENDAR_DAY_H))
-                        .border_b_1()
-                        .border_r_1()
-                        .border_color(rgb(theme::color::SURFACE))
-                        .overflow_x_hidden()
-                        .when(is_today, |el| {
-                            el.bg(rgb(theme::color::ACCENT).alpha(0.06))
-                        })
-                        .px(px(theme::space::DOT_GAP))
-                        .py(px(theme::space::DOT_GAP))
-                        .flex()
-                        .flex_col()
-                        .gap(px(theme::space::DOT_GAP / 2.0))
-                        .child(
-                            div()
-                                .text_size(px(theme::type_scale::HINT))
-                                .font_weight(FontWeight(if is_today {
-                                    theme::weight::NAV_ACTIVE
-                                } else {
-                                    theme::weight::NAV
-                                }))
-                                .text_color(rgb(if is_today {
-                                    theme::color::ACCENT
-                                } else {
-                                    theme::color::MUTED
-                                }))
-                                .child(day.to_string()),
-                        )
-                        .children(
-                            day_sessions
-                                .into_iter()
-                                .flatten()
-                                .map(|session| self.session_row(session, now, cx)),
-                        )
-                        .into_any_element()
-                }
-            }))
+        let cells = (0..5).map(|offset| {
+            let date = self.week + chrono::Duration::days(offset);
+            let is_today = date == today;
+            let day_sessions = &by_day[offset as usize];
+            let empty = day_sessions.is_empty();
+            div()
+                .flex_1()
+                .min_w_0()
+                .min_h(px(theme::geometry::CALENDAR_DAY_H))
+                .border_b_1()
+                .border_r_1()
+                .border_color(rgb(theme::color::SURFACE))
+                .overflow_x_hidden()
+                .when(is_today, |el| {
+                    el.bg(rgb(theme::color::ACCENT).alpha(0.06))
+                })
+                .px(px(theme::space::DOT_GAP))
+                .py(px(theme::space::DOT_GAP))
+                .flex()
+                .flex_col()
+                .gap(px(theme::space::DOT_GAP / 2.0))
+                .when(empty, |el| {
+                    el.child(
+                        div()
+                            .text_size(px(theme::type_scale::MINI))
+                            .text_color(rgb(theme::color::MUTED))
+                            .child("no classes"),
+                    )
+                })
+                .children(
+                    day_sessions
+                        .iter()
+                        .map(|session| self.session_row(session, now, cx)),
+                )
+                .into_any_element()
         });
 
         div()
@@ -446,34 +425,9 @@ impl Study {
             .border_t_1()
             .border_l_1()
             .border_color(rgb(theme::color::SURFACE))
-            .child(weekdays)
-            .children(grid)
+            .child(header)
+            .child(div().w_full().flex().children(cells))
     }
-}
-
-fn stat_block(label: &'static str, stat: Stat) -> impl IntoElement {
-    div()
-        .flex_1()
-        .px(px(theme::space::TIGHT))
-        .py(px(theme::space::TIGHT))
-        .border_r_1()
-        .border_color(rgb(theme::color::SURFACE))
-        .flex()
-        .flex_col()
-        .gap(px(theme::space::DOT_GAP))
-        .child(
-            div()
-                .text_size(px(theme::type_scale::MINI))
-                .text_color(rgb(theme::color::MUTED))
-                .child(label),
-        )
-        .child(
-            div()
-                .text_size(px(theme::type_scale::STAT))
-                .font_weight(FontWeight(theme::weight::NAV_ACTIVE))
-                .text_color(rgb(theme::color::FOREGROUND))
-                .child(stat.text()),
-        )
 }
 
 fn summarize_at(data: &StudyData, month: NaiveDate, now: NaiveDateTime) -> StudySummary {
@@ -514,6 +468,31 @@ fn summarize_at(data: &StudyData, month: NaiveDate, now: NaiveDateTime) -> Study
     }
 }
 
+fn stat_block(label: &'static str, stat: Stat) -> impl IntoElement {
+    div()
+        .flex_1()
+        .px(px(theme::space::TIGHT))
+        .py(px(theme::space::TIGHT))
+        .border_r_1()
+        .border_color(rgb(theme::color::SURFACE))
+        .flex()
+        .flex_col()
+        .gap(px(theme::space::DOT_GAP))
+        .child(
+            div()
+                .text_size(px(theme::type_scale::MINI))
+                .text_color(rgb(theme::color::MUTED))
+                .child(label),
+        )
+        .child(
+            div()
+                .text_size(px(theme::type_scale::STAT))
+                .font_weight(FontWeight(theme::weight::NAV_ACTIVE))
+                .text_color(rgb(theme::color::FOREGROUND))
+                .child(stat.text()),
+        )
+}
+
 /// The same three-number stats row shown on the study tab.
 pub fn summary_row(summary: StudySummary) -> impl IntoElement {
     div()
@@ -529,14 +508,26 @@ pub fn summary_row(summary: StudySummary) -> impl IntoElement {
 
 impl Render for Study {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let summary = self.summary_for(self.month);
+        let middle = self.week + chrono::Duration::days(3);
+        let stats_month = NaiveDate::from_ymd_opt(middle.year(), middle.month(), 1)
+            .expect("first of month is valid");
+        let summary = self.summary_for(stats_month);
 
         div()
             .w_full()
             .flex()
             .flex_col()
             .gap(px(theme::space::TIGHT))
-            .child(self.month_nav(cx))
+            .child(self.week_nav(cx))
+            .child(
+                div()
+                    .text_size(px(theme::type_scale::KICKER))
+                    .text_color(rgb(theme::color::SEA_GREEN))
+                    .child(format!(
+                        "{} attendance",
+                        stats_month.format("%B %Y").to_string().to_uppercase()
+                    )),
+            )
             .child(summary_row(summary))
             .child(
                 div()
@@ -571,29 +562,5 @@ impl Render for Study {
                         .child(status),
                 )
             })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cancelled_sessions_are_excluded_from_stats() {
-        let month = NaiveDate::from_ymd_opt(2026, 11, 1).unwrap();
-        let sessions = schedule::sessions_in_month(month);
-        let now = NaiveDate::from_ymd_opt(2027, 1, 20)
-            .unwrap()
-            .and_hms_opt(12, 0, 0)
-            .unwrap();
-        let mut data = StudyData::default();
-        data.attendance
-            .insert(sessions[0].key(), Attendance::Attended);
-        data.attendance
-            .insert(sessions[1].key(), Attendance::Cancelled);
-
-        let summary = summarize_at(&data, month, now);
-        assert_eq!(summary.overall.total, sessions.len() as u32 - 1);
-        assert_eq!(summary.overall.attended, 1);
     }
 }

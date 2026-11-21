@@ -161,11 +161,59 @@ pub fn next_month(date: NaiveDate) -> NaiveDate {
     NaiveDate::from_ymd_opt(year, month, 1).expect("first of month is valid")
 }
 
-pub fn days_in_month(date: NaiveDate) -> u32 {
-    let next = next_month(date);
-    next.pred_opt()
-        .expect("first of month has a predecessor")
-        .day()
+
+pub fn monday_of(date: NaiveDate) -> NaiveDate {
+    date - chrono::Duration::days(date.weekday().num_days_from_monday() as i64)
+}
+
+/// Monday-Friday sessions for the week starting `week_start` (a Monday).
+pub fn sessions_in_week(week_start: NaiveDate) -> Vec<Session> {
+    let templates = templates();
+    let start = semester_start();
+    let end = semester_end();
+    let mut sessions = Vec::new();
+    for offset in 0..5 {
+        let date = week_start + chrono::Duration::days(offset);
+        if date < start || date > end {
+            continue;
+        }
+        for template in &templates {
+            if template.weekday != date.weekday() {
+                continue;
+            }
+            if template.odd_weeks_only && !is_odd_week(date.iso_week()) {
+                continue;
+            }
+            sessions.push(Session {
+                date,
+                start: template.start,
+                end: template.end,
+                code: template.code,
+                short: template.short,
+                kind: template.kind,
+            });
+        }
+    }
+    sessions.sort_by_key(|session| (session.date, session.start));
+    sessions
+}
+
+/// Weeks inside the semester that actually contain at least one session.
+pub fn active_weeks() -> Vec<NaiveDate> {
+    let mut weeks = Vec::new();
+    let mut monday = monday_of(semester_start());
+    let last = monday_of(semester_end());
+    while monday <= last {
+        if !sessions_in_week(monday).is_empty() {
+            weeks.push(monday);
+        }
+        monday += chrono::Duration::days(7);
+    }
+    weeks
+}
+
+pub fn week_end(week_start: NaiveDate) -> NaiveDate {
+    week_start + chrono::Duration::days(4)
 }
 
 /// All sessions in `month` (first day of month), clipped to the semester.
@@ -227,6 +275,15 @@ mod tests {
         let month = NaiveDate::from_ymd_opt(2027, 1, 1).unwrap();
         let sessions = sessions_in_month(month);
         assert!(sessions.iter().all(|session| session.date <= semester_end()));
+    }
+
+    #[test]
+    fn active_weeks_exclude_empty_weeks() {
+        let weeks = active_weeks();
+        assert!(!weeks.is_empty());
+        assert!(weeks.iter().all(|week| week.weekday() == Weekday::Mon));
+        assert!(weeks.iter().all(|week| !sessions_in_week(*week).is_empty()));
+        assert_eq!(weeks[0], monday_of(NaiveDate::from_ymd_opt(2026, 11, 2).unwrap()));
     }
 
     #[test]
