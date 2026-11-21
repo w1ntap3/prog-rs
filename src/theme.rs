@@ -51,10 +51,7 @@ pub mod geometry {
     pub const HAIRLINE: f32 = 1.0;
     /// Slideshow progress dot.
     pub const DOT: f32 = 4.0;
-    /// Common input widths.
-    pub const FIELD_AMOUNT_W: f32 = 150.0;
-    pub const FIELD_NOTE_W: f32 = 330.0;
-    pub const FIELD_DATE_W: f32 = 130.0;
+    /// Time picker button width.
     pub const FIELD_TIME_W: f32 = 76.0;
     /// Ledger date+time column.
     pub const LEDGER_DATE_W: f32 = 84.0;
@@ -97,6 +94,9 @@ pub mod space {
     pub const TIGHT: f32 = 8.0;
     pub const KICKER_GAP: f32 = 6.0;
     pub const GROUP_Y: f32 = 26.0;
+    /// Card layout.
+    pub const CARD_PAD: f32 = 14.0;
+    pub const CARD_GAP: f32 = 12.0;
     pub const DOT_GAP: f32 = 4.0;
     /// Inset around the chart's plot area.
     pub const CHART_PAD_X: f32 = 8.0;
@@ -106,8 +106,9 @@ pub mod space {
     pub const FIELD_Y: f32 = 6.0;
     /// Ledger row vertical padding.
     pub const LEDGER_ROW_Y: f32 = 5.0;
-    /// Ledger scroll cap before it starts scrolling.
-    pub const LEDGER_MAX_HEIGHT: f32 = 240.0;
+    /// Ledger scroll cap before it starts scrolling. Kept short so the whole
+    /// finance page fits a 1080p viewport without page scrolling.
+    pub const LEDGER_MAX_HEIGHT: f32 = 180.0;
 }
 
 /// Type scale.

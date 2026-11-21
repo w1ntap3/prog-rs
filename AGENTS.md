@@ -99,6 +99,7 @@ src/
               validated, export/import
   currency.rs Currency/Rates types plus shared decimal parsing/formatting
   data.rs     personal DATA store: private dir, directory-tree export/import
+  datetime_picker.rs reusable calendar/time popovers (month math, overlay)
   modal.rs    app-wide confirmation dialog: full-window dim + centered panel
   appeal/
     mod.rs    appeal view: second-ticking relapse-free clock and reset flow
@@ -152,6 +153,18 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   average plan, last-7-days daily average, and percent of that view's money
   left. `main` shows the same slideshow with combined (default), nutrition and
   allowance options for the current window.
+- Finance layout is a compact card dashboard sized for one 1080p viewport:
+  every block is a `1px` bordered card padded by `space::CARD_PAD` and spaced
+  by `space::CARD_GAP`. Top row = two KPI cards (variance slideshow, and
+  break-even/day plus day/left/average-plan metadata). Then a full-width chart
+  card whose header holds the category/window controls, legend and combined
+  mode switch, with a `GRAPH_HEIGHT` (220px) canvas and a last/next payday
+  footer. The bottom row is `1fr 1.1fr 1.8fr`: window settings (3-column date/
+  balance grid plus add-window footer), add transaction (kind/currency pills,
+  category pills when split, stacked amount/note, date/time row, full-width
+  add), and one merged transactions+corrections card split `1.2fr 1fr` by an
+  internal divider. Ledger/correction lists scroll inside their own capped
+  area (`LEDGER_MAX_HEIGHT`) rather than scrolling the page.
 - Study is a fixed winter-semester timetable in `study/schedule.rs` (1 Nov
   2026 - 10 Jan 2027; summer is intentionally absent). Attendance, assignment
   deadlines and assessment times are user data in `study.toml`; attendance
@@ -168,10 +181,11 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   labs+seminars; future sessions are not markable.
   The occasional "odd weeks" lab uses ISO week parity until a real academic
   week anchor is available. Below the week calendar, assignments and
-  assessments are two side-by-side panels: pick a short course id from the
-  inline dropdown, enter a `YYYY-MM-DD HH:MM` deadline/when, and the list is
-  persisted. `main` shows the same three-number stats row for the current
-  month.
+  assessments are two side-by-side panels: enter a name, pick a short course
+  id from the inline dropdown, and click the datetime box to pick a date on a
+  calendar and then an hour/minute in a chained time popover (`datetime_picker`)
+  for the deadline/when; the list is persisted. `main` shows the same
+  three-number stats row for the current month.
 - Appeal stores `last_relapse` plus the last skincare-routine date
   (`skin_last_done`) in `appeal.toml` and derives a
   `MM:DD:HH:MM:SS` clock (calendar months, then days/hours/minutes/seconds) in

@@ -896,7 +896,6 @@ impl Finances {
         &self,
         field: Field,
         placeholder: &str,
-        width: f32,
         window: &Window,
         cx: &Context<Self>,
     ) -> impl IntoElement {
@@ -908,15 +907,16 @@ impl Finances {
         let shown = if empty { placeholder.to_owned() } else { value.to_owned() };
         div()
             .id(format!("fin-field-{field:?}"))
-            .w(px(width))
+            .w_full()
             .px(px(theme::space::FIELD_X))
             .py(px(theme::space::FIELD_Y))
-            .border_b_1()
+            .border_1()
             .border_color(rgb(if focused {
                 theme::color::ACCENT
             } else {
                 theme::color::SURFACE
             }))
+            .bg(rgb(theme::color::SURFACE).alpha(0.12))
             .flex()
             .items_center()
             .text_size(px(theme::type_scale::FIELD))
@@ -954,7 +954,6 @@ impl Finances {
         label: &'static str,
         date: NaiveDate,
         target: DateTarget,
-        width: f32,
         cx: &Context<Self>,
     ) -> impl IntoElement {
         let open = self.picker == Some(Picker::Date(target));
@@ -971,15 +970,16 @@ impl Finances {
             .child(
                 div()
                     .id(format!("fin-date-{target:?}"))
-                    .w(px(width))
+                    .w_full()
                     .px(px(theme::space::FIELD_X))
                     .py(px(theme::space::FIELD_Y))
-                    .border_b_1()
+                    .border_1()
                     .border_color(rgb(if open {
                         theme::color::ACCENT
                     } else {
                         theme::color::SURFACE
                     }))
+                    .bg(rgb(theme::color::SURFACE).alpha(0.12))
                     .text_size(px(theme::type_scale::FIELD))
                     .text_color(rgb(theme::color::FOREGROUND))
                     .cursor_pointer()
@@ -1009,12 +1009,13 @@ impl Finances {
                     .w(px(theme::geometry::FIELD_TIME_W))
                     .px(px(theme::space::FIELD_X))
                     .py(px(theme::space::FIELD_Y))
-                    .border_b_1()
+                    .border_1()
                     .border_color(rgb(if open {
                         theme::color::ACCENT
                     } else {
                         theme::color::SURFACE
                     }))
+                    .bg(rgb(theme::color::SURFACE).alpha(0.12))
                     .text_size(px(theme::type_scale::FIELD))
                     .text_color(rgb(theme::color::FOREGROUND))
                     .cursor_pointer()
@@ -1036,7 +1037,10 @@ impl Finances {
             .id(format!("fin-entry-kind-{}", kind.label()))
             .px(px(theme::space::ITEM_X))
             .py(px(theme::space::ITEM_Y - 2.))
+            .border_1()
+            .border_color(rgb(theme::color::SURFACE))
             .when(selected, |el| el.bg(rgb(theme::color::SURFACE)))
+            .when(!selected, |el| el.bg(rgb(theme::color::SURFACE).alpha(0.08)))
             .text_size(px(theme::type_scale::NAV))
             .text_color(rgb(if selected {
                 accent
@@ -1062,7 +1066,10 @@ impl Finances {
             .id(format!("fin-adj-cur-{}", currency.label()))
             .px(px(theme::space::ITEM_X))
             .py(px(theme::space::ITEM_Y - 2.))
+            .border_1()
+            .border_color(rgb(theme::color::SURFACE))
             .when(selected, |el| el.bg(rgb(theme::color::SURFACE)))
+            .when(!selected, |el| el.bg(rgb(theme::color::SURFACE).alpha(0.08)))
             .text_size(px(theme::type_scale::NAV))
             .text_color(rgb(if selected {
                 theme::color::ACCENT
@@ -1084,7 +1091,10 @@ impl Finances {
             .id(format!("fin-entry-cat-{}", category.label()))
             .px(px(theme::space::ITEM_X))
             .py(px(theme::space::ITEM_Y - 2.))
+            .border_1()
+            .border_color(rgb(theme::color::SURFACE))
             .when(selected, |el| el.bg(rgb(theme::color::SURFACE)))
+            .when(!selected, |el| el.bg(rgb(theme::color::SURFACE).alpha(0.08)))
             .text_size(px(theme::type_scale::NAV))
             .text_color(rgb(if selected {
                 theme::color::ACCENT
@@ -1106,7 +1116,10 @@ impl Finances {
             .id(format!("fin-cur-{}", currency.label()))
             .px(px(theme::space::ITEM_X))
             .py(px(theme::space::ITEM_Y - 2.))
+            .border_1()
+            .border_color(rgb(theme::color::SURFACE))
             .when(selected, |el| el.bg(rgb(theme::color::SURFACE)))
+            .when(!selected, |el| el.bg(rgb(theme::color::SURFACE).alpha(0.08)))
             .text_size(px(theme::type_scale::NAV))
             .text_color(rgb(if selected {
                 theme::color::ACCENT
@@ -1128,7 +1141,10 @@ impl Finances {
             .id(format!("fin-chart-cat-{}", category.label()))
             .px(px(theme::space::ITEM_X))
             .py(px(theme::space::ITEM_Y - 2.))
+            .border_1()
+            .border_color(rgb(theme::color::SURFACE))
             .when(selected, |el| el.bg(rgb(theme::color::SURFACE)))
+            .when(!selected, |el| el.bg(rgb(theme::color::SURFACE).alpha(0.08)))
             .text_size(px(theme::type_scale::NAV))
             .text_color(rgb(if selected {
                 theme::color::ACCENT
@@ -1471,20 +1487,12 @@ impl Finances {
         let count = statements.len();
         let can_navigate = count > 1;
 
-        let daily = if summary.is_past || summary.available == 0 {
-            "—".to_owned()
-        } else {
-            money(summary.threshold_round())
-        };
-
         div()
             .id("fin-slideshow")
-            .h(px(theme::geometry::SLIDE_HEIGHT))
             .w_full()
             .flex()
-            .items_center()
-            .justify_between()
-            .gap(px(theme::space::GROUP_Y))
+            .flex_col()
+            .gap(px(theme::space::TIGHT))
             .child(
                 div()
                     .flex()
@@ -1545,94 +1553,89 @@ impl Finances {
                             )),
                     ),
             )
+    }
+
+    /// Bordered container shared by every finance block.
+    fn card() -> gpui::Div {
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(theme::space::TIGHT))
+            .p(px(theme::space::CARD_PAD))
+            .border_1()
+            .border_color(rgb(theme::color::SURFACE))
+    }
+
+    fn metric(label: &'static str, value: String) -> impl IntoElement {
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(theme::space::DOT_GAP))
+            .child(Self::hint(label))
             .child(
                 div()
-                    .flex()
-                    .flex_col()
-                    .items_end()
-                    .gap(px(theme::space::DOT_GAP))
-                    .child(Self::hint("break-even / day"))
-                    .child(
-                        div()
-                            .text_size(px(theme::type_scale::STATEMENT))
-                            .font_weight(FontWeight(theme::weight::STATEMENT))
-                            .text_color(rgb(theme::color::YELLOW))
-                            .child(daily),
-                    ),
+                    .text_size(px(theme::type_scale::NAV))
+                    .text_color(rgb(theme::color::FOREGROUND))
+                    .child(value),
             )
     }
 
-    /// Page-level context: which category and which payout window everything
-    /// below is showing.
-    fn view_toolbar(&self, summary: &Summary, cx: &Context<Self>) -> impl IntoElement {
-        let first = self.selected_period == 0;
-        let last = self.selected_period + 1 == self.data.periods.len();
-        let state = if summary.is_future {
-            "future"
-        } else if summary.is_past {
-            "past"
+    /// Top summary row: variance slideshow on the left, break-even and
+    /// window metadata on the right.
+    fn kpi_row(&self, summary: &Summary, cx: &Context<Self>) -> impl IntoElement {
+        let daily = if summary.is_past || summary.available == 0 {
+            "—".to_owned()
         } else {
-            "current"
+            money(summary.threshold_round())
+        };
+        let plan = if summary.plan_active {
+            money(summary.plan_now)
+        } else {
+            "—".to_owned()
         };
 
         div()
             .w_full()
             .flex()
-            .items_center()
-            .justify_between()
+            .items_stretch()
+            .gap(px(theme::space::CARD_GAP))
             .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(theme::space::TIGHT))
-                    .child(Self::hint("viewing"))
-                    .when(summary.combined, |el| {
-                        el.child(
-                            div()
-                                .px(px(theme::space::ITEM_X))
-                                .py(px(theme::space::ITEM_Y - 2.))
-                                .bg(rgb(theme::color::SURFACE))
-                                .text_size(px(theme::type_scale::NAV))
-                                .text_color(rgb(theme::color::MINT))
-                                .child("combined"),
-                        )
-                        .child(Self::hint("one balance · no category split"))
-                    })
-                    .when(!summary.combined, |el| {
-                        el.child(self.chart_tab(Category::Nutrition, cx))
-                            .child(self.chart_tab(Category::Allowance, cx))
-                    }),
+                Self::card()
+                    .flex_1()
+                    .min_w_0()
+                    .child(self.slideshow(summary, cx)),
             )
             .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(theme::space::TIGHT))
-                    .child(Self::arrow_button(
-                        "‹",
-                        !first,
-                        "fin-window-prev",
-                        cx,
-                        |this, cx| this.move_period(-1, cx),
-                    ))
+                Self::card()
+                    .flex_1()
+                    .min_w_0()
+                    .justify_between()
                     .child(
                         div()
-                            .text_size(px(theme::type_scale::MINI))
-                            .text_color(rgb(theme::color::MUTED))
-                            .child(format!(
-                                "window {} / {} · {state}{}",
-                                self.selected_period + 1,
-                                self.data.periods.len(),
-                                if summary.combined { " · combined" } else { "" }
-                            )),
+                            .flex()
+                            .items_baseline()
+                            .gap(px(theme::space::TIGHT))
+                            .child(
+                                div()
+                                    .text_size(px(theme::type_scale::STATEMENT))
+                                    .font_weight(FontWeight(theme::weight::STATEMENT))
+                                    .text_color(rgb(theme::color::ACCENT))
+                                    .child(daily),
+                            )
+                            .child(Self::hint("break-even / day")),
                     )
-                    .child(Self::arrow_button(
-                        "›",
-                        !last,
-                        "fin-window-next",
-                        cx,
-                        |this, cx| this.move_period(1, cx),
-                    )),
+                    .child(
+                        div()
+                            .flex()
+                            .items_end()
+                            .gap(px(theme::space::GROUP_Y))
+                            .child(Self::metric(
+                                "day",
+                                format!("{} of {}", summary.day_index, summary.total_days),
+                            ))
+                            .child(Self::metric("left", money(summary.remaining)))
+                            .child(Self::metric("average plan", plan)),
+                    ),
             )
     }
 
@@ -1793,12 +1796,84 @@ impl Finances {
     }
 
     fn chart(&self, summary: &Summary, cx: &Context<Self>) -> impl IntoElement {
-        div()
-            .flex()
-            .flex_col()
-            .gap(px(theme::space::TIGHT))
+        let first = self.selected_period == 0;
+        let last = self.selected_period + 1 == self.data.periods.len();
+        let state = if summary.is_future {
+            "future"
+        } else if summary.is_past {
+            "past"
+        } else {
+            "current"
+        };
+
+        Self::card()
+            .w_full()
             .child(
                 div()
+                    .w_full()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(theme::space::TIGHT))
+                            .child(Self::hint("viewing"))
+                            .when(summary.combined, |el| {
+                                el.child(
+                                    div()
+                                        .px(px(theme::space::ITEM_X))
+                                        .py(px(theme::space::ITEM_Y - 2.))
+                                        .border_1()
+                                        .border_color(rgb(theme::color::SURFACE))
+                                        .bg(rgb(theme::color::SURFACE))
+                                        .text_size(px(theme::type_scale::NAV))
+                                        .text_color(rgb(theme::color::MINT))
+                                        .child("combined"),
+                                )
+                                .child(Self::hint("one balance · no category split"))
+                            })
+                            .when(!summary.combined, |el| {
+                                el.child(self.chart_tab(Category::Nutrition, cx))
+                                    .child(self.chart_tab(Category::Allowance, cx))
+                            }),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(theme::space::TIGHT))
+                            .child(Self::arrow_button(
+                                "‹",
+                                !first,
+                                "fin-window-prev",
+                                cx,
+                                |this, cx| this.move_period(-1, cx),
+                            ))
+                            .child(
+                                div()
+                                    .text_size(px(theme::type_scale::MINI))
+                                    .text_color(rgb(theme::color::MUTED))
+                                    .child(format!(
+                                        "window {} / {} · {state}{}",
+                                        self.selected_period + 1,
+                                        self.data.periods.len(),
+                                        if summary.combined { " · combined" } else { "" }
+                                    )),
+                            )
+                            .child(Self::arrow_button(
+                                "›",
+                                !last,
+                                "fin-window-next",
+                                cx,
+                                |this, cx| this.move_period(1, cx),
+                            )),
+                    ),
+            )
+            .child(
+                div()
+                    .w_full()
                     .flex()
                     .items_center()
                     .justify_between()
@@ -1822,7 +1897,28 @@ impl Finances {
                                     "average plan",
                                 ))
                             })
-                            
+                            .child(
+                                div()
+                                    .id("fin-toggle-combined")
+                                    .text_size(px(theme::type_scale::MINI))
+                                    .text_color(rgb(if summary.combined {
+                                        theme::color::MINT
+                                    } else {
+                                        theme::color::MUTED
+                                    }))
+                                    .cursor_pointer()
+                                    .hover(|style| {
+                                        style.text_color(rgb(theme::color::ACCENT))
+                                    })
+                                    .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
+                                        this.toggle_combined(cx)
+                                    }))
+                                    .child(if summary.combined {
+                                        "combined · split into categories"
+                                    } else {
+                                        "combine this window into one balance"
+                                    }),
+                            ),
                     ),
             )
             .when(!summary.plan_available, |el| {
@@ -1850,34 +1946,15 @@ impl Finances {
             )
             .child(
                 div()
+                    .w_full()
                     .flex()
                     .justify_between()
                     .text_size(px(theme::type_scale::MINI))
                     .text_color(rgb(theme::color::MUTED))
                     .child(format!("last payday {}", format_date(summary.start)))
                     .child(format!(
-                        "day {} of {}",
-                        summary.day_index, summary.total_days
-                    ))
-                    .child(format!(
                         "next payday {}",
                         format_date(summary.next_payday)
-                    )),
-            )
-            .child(
-                div()
-                    .flex()
-                    .justify_between()
-                    .text_size(px(theme::type_scale::MINI))
-                    .text_color(rgb(theme::color::MUTED))
-                    .child(format!("left {}", money(summary.remaining)))
-                    .child(format!(
-                        "average plan {}",
-                        if summary.plan_active {
-                            money(summary.plan_now)
-                        } else {
-                            "—".to_owned()
-                        }
                     )),
             )
     }
@@ -1907,22 +1984,21 @@ impl Finances {
         let enabled = parse_decimal(&self.amount).is_some_and(|amount| amount > 0.0);
         let amount_placeholder = format!("amount ({})", self.entry_currency.label());
 
-        div()
-            .flex()
-            .flex_col()
-            .gap(px(theme::space::TIGHT))
-            .pt(px(theme::space::TIGHT))
-            .border_t_1()
-            .border_color(rgb(theme::color::SURFACE))
+        Self::card()
+            .h_full()
             .child(Self::kicker("add transaction"))
             .child(
                 div()
+                    .w_full()
                     .flex()
+                    .flex_wrap()
                     .items_center()
                     .gap(px(theme::space::TIGHT))
-                    .child(Self::hint("kind"))
                     .child(self.kind_button(Kind::Expense, cx))
-                    .child(self.kind_button(Kind::Income, cx)),
+                    .child(self.kind_button(Kind::Income, cx))
+                    .child(self.currency_button(Currency::Czk, cx))
+                    .child(self.currency_button(Currency::Eur, cx))
+                    .child(self.currency_button(Currency::Azn, cx)),
             )
             .when(self.period().combined, |el| {
                 el.child(Self::hint("combined window · category is ignored"))
@@ -1930,10 +2006,11 @@ impl Finances {
             .when(!self.period().combined, |el| {
                 el.child(
                     div()
+                        .w_full()
                         .flex()
+                        .flex_wrap()
                         .items_center()
                         .gap(px(theme::space::TIGHT))
-                        .child(Self::hint("category"))
                         .children(
                             Category::ALL
                                 .into_iter()
@@ -1941,265 +2018,217 @@ impl Finances {
                         ),
                 )
             })
+            .child(self.field(Field::Amount, &amount_placeholder, window, cx))
+            .child(self.field(Field::Note, "note (optional)", window, cx))
             .child(
                 div()
-                    .flex()
-                    .items_center()
-                    .gap(px(theme::space::TIGHT))
-                    .child(Self::hint("currency"))
-                    .children(
-                        Currency::ALL
-                            .into_iter()
-                            .map(|currency| self.currency_button(currency, cx)),
-                    ),
-            )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(theme::space::TIGHT))
-                    .child(self.field(
-                        Field::Amount,
-                        &amount_placeholder,
-                        theme::geometry::FIELD_AMOUNT_W,
-                        window,
-                        cx,
-                    ))
-                    .child(
-                        div()
-                            .id("fin-add")
-                            .px(px(theme::space::ITEM_X))
-                            .py(px(theme::space::ITEM_Y - 1.))
-                            .bg(rgb(theme::color::SURFACE))
-                            .text_size(px(theme::type_scale::NAV))
-                            .text_color(rgb(if enabled {
-                                theme::color::ACCENT
-                            } else {
-                                theme::color::MUTED
-                            }))
-                            .cursor_pointer()
-                            .hover(|style| style.text_color(rgb(theme::color::ACCENT)))
-                            .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
-                                this.add_transaction(cx)
-                            }))
-                            .child("add"),
-                    ),
-            )
-            .child(self.field(
-                Field::Note,
-                "note (optional)",
-                theme::geometry::FIELD_NOTE_W,
-                window,
-                cx,
-            ))
-            .child(
-                div()
+                    .w_full()
                     .flex()
                     .items_end()
                     .gap(px(theme::space::TIGHT))
-                    .child(self.date_button(
-                        "date",
-                        self.date,
-                        DateTarget::Transaction,
-                        theme::geometry::FIELD_DATE_W,
-                        cx,
-                    ))
-                    .child(self.time_button(TimeTarget::Transaction, cx))
-                    .child(Self::now_button(TimeTarget::Transaction, cx))
                     .child(
                         div()
-                            .pb(px(theme::space::FIELD_Y))
-                            .child(Self::hint("enter adds")),
-                    ),
-            )
-    }
-
-    fn window_panel(&self, cx: &Context<Self>, window: &Window) -> impl IntoElement {
-        div()
-            .w_full()
-            .flex()
-            .flex_col()
-            .gap(px(theme::space::TIGHT))
-            .pt(px(theme::space::TIGHT))
-            .border_t_1()
-            .border_color(rgb(theme::color::SURFACE))
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .child(Self::kicker("window settings"))
-                    .child(
-                        div()
-                            .id("fin-toggle-combined")
-                            .text_size(px(theme::type_scale::MINI))
-                            .text_color(rgb(if self.period().combined {
-                                theme::color::MINT
-                            } else {
-                                theme::color::MUTED
-                            }))
-                            .cursor_pointer()
-                            .hover(|style| style.text_color(rgb(theme::color::ACCENT)))
-                            .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
-                                this.toggle_combined(cx)
-                            }))
-                            .child(if self.period().combined {
-                                "combined · split into categories"
-                            } else {
-                                "combine this window into one balance"
-                            }),
-                    ),
-            )
-            .child(
-                div()
-                    .flex()
-                    .flex_wrap()
-                    .items_end()
-                    .gap(px(theme::space::GROUP_Y))
-                    .child(
-                        div()
-                            .flex()
-                            .items_end()
-                            .gap(px(theme::space::TIGHT))
+                            .flex_1()
+                            .min_w_0()
                             .child(self.date_button(
-                                "last payday",
-                                self.period().start,
-                                DateTarget::PeriodStart,
-                                theme::geometry::FIELD_DATE_W,
-                                cx,
-                            ))
-                            .child(self.date_button(
-                                "next payday",
-                                self.period().end,
-                                DateTarget::PeriodEnd,
-                                theme::geometry::FIELD_DATE_W,
+                                "date",
+                                self.date,
+                                DateTarget::Transaction,
                                 cx,
                             )),
                     )
-                    .child(if self.period().combined {
-                        div()
-                            .flex()
-                            .items_end()
-                            .gap(px(theme::space::TIGHT))
-                            .child(Self::labeled(
-                                "window balance",
-                                self.field(
-                                    Field::CombinedBudget,
-                                    "CZK",
-                                    theme::geometry::FIELD_TIME_W,
-                                    window,
-                                    cx,
-                                ),
-                            ))
-                            .child(
-                                div()
-                                    .pb(px(theme::space::FIELD_Y))
-                                    .child(Self::hint("one pot · enter to apply")),
-                            )
+                    .child(self.time_button(TimeTarget::Transaction, cx))
+                    .child(Self::now_button(TimeTarget::Transaction, cx)),
+            )
+            .child(div().flex_grow(1.0))
+            .child(
+                div()
+                    .id("fin-add")
+                    .w_full()
+                    .flex()
+                    .justify_center()
+                    .px(px(theme::space::ITEM_X))
+                    .py(px(theme::space::ITEM_Y - 1.))
+                    .border_1()
+                    .border_color(rgb(theme::color::SURFACE))
+                    .bg(rgb(theme::color::SURFACE).alpha(0.12))
+                    .text_size(px(theme::type_scale::NAV))
+                    .text_color(rgb(if enabled {
+                        theme::color::ACCENT
                     } else {
-                        div()
-                            .flex()
-                            .items_end()
-                            .gap(px(theme::space::TIGHT))
-                            .child(Self::labeled(
-                                "nutrition balance",
-                                self.field(
-                                    Field::NutritionBudget,
-                                    "CZK",
-                                    theme::geometry::FIELD_TIME_W,
-                                    window,
-                                    cx,
-                                ),
-                            ))
-                            .child(Self::labeled(
-                                "allowance balance",
-                                self.field(
-                                    Field::AllowanceBudget,
-                                    "CZK",
-                                    theme::geometry::FIELD_TIME_W,
-                                    window,
-                                    cx,
-                                ),
-                            ))
-                            .child(
-                                div()
-                                    .pb(px(theme::space::FIELD_Y))
-                                    .child(Self::hint("enter to apply")),
-                            )
-                    })
+                        theme::color::MUTED
+                    }))
+                    .cursor_pointer()
+                    .hover(|style| style.text_color(rgb(theme::color::ACCENT)))
+                    .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
+                        this.add_transaction(cx)
+                    }))
+                    .child("add"),
+            )
+            .child(Self::hint("enter adds"))
+    }
+
+    fn window_panel(&self, cx: &Context<Self>, window: &Window) -> impl IntoElement {
+        let period = self.period();
+        let combined = period.combined;
+        let start = period.start;
+        let end = period.end;
+
+        Self::card()
+            .h_full()
+            .child(Self::kicker("window settings"))
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .items_end()
+                    .gap(px(theme::space::TIGHT))
                     .child(
                         div()
-                            .flex()
-                            .items_end()
-                            .gap(px(theme::space::TIGHT))
-                            .child(
-                                div()
-                                    .id("fin-add-window")
-                                    .pb(px(theme::space::FIELD_Y))
-                                    .text_size(px(theme::type_scale::MINI))
-                                    .text_color(rgb(theme::color::MUTED))
-                                    .cursor_pointer()
-                                    .hover(|style| {
-                                        style.text_color(rgb(theme::color::ACCENT))
-                                    })
-                                    .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
-                                        this.open_new_window(cx)
-                                    }))
-                                    .child("+ add window"),
-                            )
-                            .when_some(self.new_window, |el, (start, end)| {
-                                el.child(self.date_button(
-                                    "starts",
-                                    start,
-                                    DateTarget::NewStart,
-                                    theme::geometry::FIELD_DATE_W,
-                                    cx,
-                                ))
-                                .child(self.date_button(
-                                    "ends",
-                                    end,
-                                    DateTarget::NewEnd,
-                                    theme::geometry::FIELD_DATE_W,
-                                    cx,
-                                ))
-                                .child(
-                                    div()
-                                        .id("fin-create-window")
-                                        .pb(px(theme::space::FIELD_Y))
-                                        .text_size(px(theme::type_scale::MINI))
-                                        .text_color(rgb(theme::color::ACCENT))
-                                        .cursor_pointer()
-                                        .hover(|style| {
-                                            style.text_color(rgb(theme::color::FOREGROUND))
-                                        })
-                                        .on_click(cx.listener(
-                                            |this, _: &ClickEvent, _, cx| {
-                                                this.create_window(cx)
-                                            },
-                                        ))
-                                        .child("add window"),
-                                )
-                                .child(
-                                    div()
-                                        .id("fin-cancel-window")
-                                        .pb(px(theme::space::FIELD_Y))
-                                        .text_size(px(theme::type_scale::MINI))
-                                        .text_color(rgb(theme::color::MUTED))
-                                        .cursor_pointer()
-                                        .hover(|style| {
-                                            style.text_color(rgb(theme::color::FOREGROUND))
-                                        })
-                                        .on_click(cx.listener(
-                                            |this, _: &ClickEvent, _, cx| {
-                                                this.new_window = None;
-                                                cx.notify();
-                                            },
-                                        ))
-                                        .child("cancel"),
-                                )
-                            }),
-                    ),
+                            .flex_1()
+                            .min_w_0()
+                            .child(self.date_button(
+                                "last payday",
+                                start,
+                                DateTarget::PeriodStart,
+                                cx,
+                            )),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .child(self.date_button(
+                                "next payday",
+                                end,
+                                DateTarget::PeriodEnd,
+                                cx,
+                            )),
+                    )
+                    .when(combined, |el| {
+                        el.child(
+                            div().flex_1().min_w_0().child(Self::labeled(
+                                "window balance",
+                                self.field(Field::CombinedBudget, "CZK", window, cx),
+                            )),
+                        )
+                    }),
             )
+            .when(!combined, |el| {
+                el.child(
+                    div()
+                        .w_full()
+                        .flex()
+                        .items_end()
+                        .gap(px(theme::space::TIGHT))
+                        .child(
+                            div().flex_1().min_w_0().child(Self::labeled(
+                                "nutrition balance",
+                                self.field(Field::NutritionBudget, "CZK", window, cx),
+                            )),
+                        )
+                        .child(
+                            div().flex_1().min_w_0().child(Self::labeled(
+                                "allowance balance",
+                                self.field(Field::AllowanceBudget, "CZK", window, cx),
+                            )),
+                        ),
+                )
+            })
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .child(
+                        div()
+                            .id("fin-add-window")
+                            .px(px(theme::space::ITEM_X))
+                            .py(px(theme::space::ITEM_Y - 2.))
+                            .border_1()
+                            .border_color(rgb(theme::color::SURFACE))
+                            .bg(rgb(theme::color::SURFACE).alpha(0.08))
+                            .text_size(px(theme::type_scale::MINI))
+                            .text_color(rgb(theme::color::MUTED))
+                            .cursor_pointer()
+                            .hover(|style| style.text_color(rgb(theme::color::ACCENT)))
+                            .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
+                                this.open_new_window(cx)
+                            }))
+                            .child("+ add window"),
+                    )
+                    .child(Self::hint(if combined {
+                        "one pot · enter to apply"
+                    } else {
+                        "enter to apply"
+                    })),
+            )
+            .when_some(self.new_window, |el, (start, end)| {
+                el.child(
+                    div()
+                        .w_full()
+                        .flex()
+                        .flex_wrap()
+                        .items_end()
+                        .gap(px(theme::space::TIGHT))
+                        .child(
+                            div().flex_1().min_w_0().child(self.date_button(
+                                "starts",
+                                start,
+                                DateTarget::NewStart,
+                                cx,
+                            )),
+                        )
+                        .child(
+                            div().flex_1().min_w_0().child(self.date_button(
+                                "ends",
+                                end,
+                                DateTarget::NewEnd,
+                                cx,
+                            )),
+                        )
+                        .child(
+                            div()
+                                .id("fin-create-window")
+                                .px(px(theme::space::ITEM_X))
+                                .py(px(theme::space::ITEM_Y - 2.))
+                                .border_1()
+                                .border_color(rgb(theme::color::SURFACE))
+                                .bg(rgb(theme::color::SURFACE).alpha(0.08))
+                                .text_size(px(theme::type_scale::MINI))
+                                .text_color(rgb(theme::color::ACCENT))
+                                .cursor_pointer()
+                                .hover(|style| {
+                                    style.text_color(rgb(theme::color::FOREGROUND))
+                                })
+                                .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
+                                    this.create_window(cx)
+                                }))
+                                .child("add window"),
+                        )
+                        .child(
+                            div()
+                                .id("fin-cancel-window")
+                                .px(px(theme::space::ITEM_X))
+                                .py(px(theme::space::ITEM_Y - 2.))
+                                .border_1()
+                                .border_color(rgb(theme::color::SURFACE))
+                                .bg(rgb(theme::color::SURFACE).alpha(0.08))
+                                .text_size(px(theme::type_scale::MINI))
+                                .text_color(rgb(theme::color::MUTED))
+                                .cursor_pointer()
+                                .hover(|style| {
+                                    style.text_color(rgb(theme::color::FOREGROUND))
+                                })
+                                .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
+                                    this.new_window = None;
+                                    cx.notify();
+                                }))
+                                .child("cancel"),
+                        ),
+                )
+            })
     }
 
     fn corrections(
@@ -2283,9 +2312,6 @@ impl Finances {
             .flex()
             .flex_col()
             .gap(px(theme::space::TIGHT))
-            .pt(px(theme::space::TIGHT))
-            .border_t_1()
-            .border_color(rgb(theme::color::SURFACE))
             .child(
                 div()
                     .flex()
@@ -2321,7 +2347,6 @@ impl Finances {
                         "at",
                         self.adjust_date,
                         DateTarget::Adjustment,
-                        theme::geometry::FIELD_DATE_W,
                         cx,
                     ))
                     .child(self.time_button(TimeTarget::Adjustment, cx))
@@ -2331,7 +2356,6 @@ impl Finances {
                         self.field(
                             Field::AdjustBalance,
                             self.adjust_currency.label(),
-                            theme::geometry::FIELD_AMOUNT_W,
                             window,
                             cx,
                         ),
@@ -2463,9 +2487,6 @@ impl Finances {
             .flex()
             .flex_col()
             .gap(px(theme::space::TIGHT))
-            .pt(px(theme::space::TIGHT))
-            .border_t_1()
-            .border_color(rgb(theme::color::SURFACE))
             .child(Self::kicker(if summary.combined {
                 "transactions · combined"
             } else {
@@ -2518,6 +2539,39 @@ impl Finances {
                     .children(rows),
             )
     }
+    fn logs_card(
+        &self,
+        summary: &Summary,
+        window: &Window,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        Self::card()
+            .h_full()
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .items_start()
+                    .child(
+                        div()
+                            .flex_grow(1.2)
+                            .flex_basis(px(0.))
+                            .min_w_0()
+                            .pr(px(theme::space::CARD_PAD))
+                            .border_r_1()
+                            .border_color(rgb(theme::color::SURFACE))
+                            .child(self.ledger(summary, cx)),
+                    )
+                    .child(
+                        div()
+                            .flex_grow(1.0)
+                            .flex_basis(px(0.))
+                            .min_w_0()
+                            .pl(px(theme::space::CARD_PAD))
+                            .child(self.corrections(summary, window, cx)),
+                    ),
+            )
+    }
 }
 
 impl Render for Finances {
@@ -2535,29 +2589,36 @@ impl Render for Finances {
             .w_full()
             .flex()
             .flex_col()
-            .gap(px(theme::space::GROUP_Y))
-            .child(self.view_toolbar(&summary, cx))
-            .child(self.slideshow(&summary, cx))
+            .gap(px(theme::space::CARD_GAP))
+            .child(self.kpi_row(&summary, cx))
             .child(self.chart(&summary, cx))
             .child(
                 div()
+                    .w_full()
                     .flex()
-                    .gap(px(theme::space::GROUP_Y))
-                    .items_start()
-                    .child(div().flex_1().child(self.window_panel(cx, window)))
+                    .items_stretch()
+                    .gap(px(theme::space::CARD_GAP))
                     .child(
                         div()
-                            .flex_1()
-                            .child(self.corrections(&summary, window, cx)),
+                            .flex_grow(1.0)
+                            .flex_basis(px(0.))
+                            .min_w_0()
+                            .child(self.window_panel(cx, window)),
+                    )
+                    .child(
+                        div()
+                            .flex_grow(1.1)
+                            .flex_basis(px(0.))
+                            .min_w_0()
+                            .child(self.entry(cx, window)),
+                    )
+                    .child(
+                        div()
+                            .flex_grow(1.8)
+                            .flex_basis(px(0.))
+                            .min_w_0()
+                            .child(self.logs_card(&summary, window, cx)),
                     ),
-            )
-            .child(
-                div()
-                    .flex()
-                    .gap(px(theme::space::GROUP_Y))
-                    .items_start()
-                    .child(div().flex_1().child(self.entry(cx, window)))
-                    .child(div().flex_1().child(self.ledger(&summary, cx))),
             )
             .when_some(self.status.clone(), |el, status| {
                 el.child(
