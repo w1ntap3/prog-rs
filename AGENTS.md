@@ -11,7 +11,7 @@ because the user builds it himself; structure still being figured out.
 didn't focus on any of this" (e.g. "you wouldn't have saved X CZK, you'd
 weigh 10kg more, ..."). Sections (finances, appeal, ...) map to life areas.
 The shell, config/data stores, finances and the appeal relapse clock are
-implemented; other sections are still placeholders.
+implemented; `study` and the remaining sections are placeholders.
 
 ## Commands
 
@@ -129,7 +129,7 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   (`app::SETTINGS_SECTION`) renders one settings block per configured section
   (finances supplies currency conversion rates; others show an empty note).
   `finances` (`app::FINANCES_SECTION`) and `appeal` are the real content views
-  so far.
+  so far; `study` is a placeholder tab.
 - Config vs data stays strict: currency rates live in `config.toml`, while
   payout windows, transactions, balance corrections and the appeal
   `last_relapse` live in private files under the data dir. All have validated

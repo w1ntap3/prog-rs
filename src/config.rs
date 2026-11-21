@@ -32,7 +32,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             version: VERSION,
-            sections: ["main", "finances", "appeal", "settings"]
+            sections: ["main", "finances", "appeal", "study", "settings"]
                 .map(str::to_owned)
                 .to_vec(),
             rates: Rates::default(),
