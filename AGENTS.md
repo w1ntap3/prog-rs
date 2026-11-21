@@ -24,6 +24,8 @@ sections are still placeholders.
 
 ## Workflow rules
 
+- **Git usage follows `GIT.md`.** Status/fetch before work, stage specific
+  files, commit coherent units, never rewrite history without permission.
 - **After every change, install a fresh build for KRunner.** Run
   `cargo install --path . --force` before handing work back. The KDE
   launcher's `Exec=` points at `~/.cargo/bin/prog-rs`, so without this
@@ -91,7 +93,8 @@ Only these colors may appear in the UI; use the base (normal) variants first.
 src/
   main.rs     entry point: startup tuning -> load config -> open window
   app.rs      root view: brand, nav (from config.sections), per-tab settings,
-              and the single scrollable content area with custom scrollbar
+              `main` finance headline, and the single scrollable content area
+              with custom scrollbar
   config.rs   app STRUCTURE config: sections + shared currency rates, TOML,
               validated, export/import
   currency.rs Currency/Rates types plus shared decimal parsing/formatting
@@ -132,7 +135,8 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   at a timestamp so later points shift automatically. Chart draws the smooth
   actual balance line and the straight average plan from the window's first income;
   hovering shows minute-precision values for both. A single break-even/day
-  readout (`remaining / days left`) is the primary number.
+  readout (`remaining / days left`) is the primary number. `main` shows the
+  same slideshow via a read-only snapshot of the current window as one pot.
 - Every tab's content lives in one shared vertical scroller with a custom
   right-edge scrollbar that only paints when content overflows; it widens on
   hover and is draggable. The sidebar list scrolls independently.
