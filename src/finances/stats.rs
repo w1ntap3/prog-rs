@@ -434,9 +434,11 @@ fn transaction_x(start: NaiveDate, date: NaiveDate, time: chrono::NaiveTime) -> 
     days + seconds / 86_400.0
 }
 
-/// `12 345 CZK`, with spaces grouping thousands.
+/// `12 345.67 CZK`; `amount` is in minor units (hundredths of a crown).
 pub fn money(amount: i64) -> String {
-    let digits = amount.abs().to_string();
+    let absolute = amount.abs();
+    let digits = (absolute / 100).to_string();
+    let cents = absolute % 100;
     let mut grouped = String::new();
     for (i, ch) in digits.chars().enumerate() {
         if i > 0 && (digits.len() - i) % 3 == 0 {
@@ -445,7 +447,7 @@ pub fn money(amount: i64) -> String {
         grouped.push(ch);
     }
     let sign = if amount < 0 { "-" } else { "" };
-    format!("{sign}{grouped} CZK")
+    format!("{sign}{grouped}.{cents:02} CZK")
 }
 
 #[cfg(test)]
@@ -645,8 +647,8 @@ mod tests {
 
     #[test]
     fn money_groups_thousands() {
-        assert_eq!(money(0), "0 CZK");
-        assert_eq!(money(1234), "1 234 CZK");
-        assert_eq!(money(-1234567), "-1 234 567 CZK");
+        assert_eq!(money(0), "0.00 CZK");
+        assert_eq!(money(1234), "12.34 CZK");
+        assert_eq!(money(-1234567), "-12 345.67 CZK");
     }
 }

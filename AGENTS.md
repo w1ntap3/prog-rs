@@ -106,9 +106,9 @@ src/
   finances/
     mod.rs    finance view: category/window toolbar, slideshow, chart,
               window + correction panels, entry form, ledger
-    model.rs  v6 finances.toml: payout windows (category balances or combined),
+    model.rs  v7 finances.toml: payout windows (category balances or combined),
               transactions (expense/income, optional foreign currency),
-              manual balance corrections
+              manual balance corrections; all amounts in minor units (0.01 CZK)
     stats.rs  per-window/category math: available money, average plan,
               break-even/day, points, slideshow statements
     graph.rs  custom-painted chart (actual + average plan) with hover readout
@@ -137,7 +137,9 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
 - Finances: a window is a payout period with per-category balances
   (nutrition/allowance) or a single `combined` balance. Transactions are
   expense/income, optionally entered in CZK/EUR/AZN and converted to CZK at
-  entry time using the configured rates. Manual corrections store a CZK delta
+  entry time using the configured rates. All finance amounts are stored in
+  hundredths of a crown and displayed with 0.01 precision; older whole-crown
+  data is scaled on load. Manual corrections store a CZK delta
   at a timestamp so later points shift automatically. Chart draws the stepped
   actual balance line and the straight average plan from the window's first
   income; hovering shows minute-precision values for both. A single

@@ -126,9 +126,9 @@ impl Finances {
         let selected_period = data.current_period_index(today);
         let period = &data.periods[selected_period];
         let this = Self {
-            nutrition_budget: period.budget(Category::Nutrition).to_string(),
-            allowance_budget: period.budget(Category::Allowance).to_string(),
-            combined_budget: period.combined_balance().to_string(),
+            nutrition_budget: amount_input(period.budget(Category::Nutrition)),
+            allowance_budget: amount_input(period.budget(Category::Allowance)),
+            combined_budget: amount_input(period.combined_balance()),
             date: today,
             time,
             adjust_date: today,
@@ -314,7 +314,14 @@ impl Finances {
         let Some(chars) = event.keystroke.key_char.as_deref() else {
             return;
         };
-        let decimal = matches!(field, Field::Amount | Field::AdjustBalance);
+        let decimal = matches!(
+            field,
+            Field::Amount
+                | Field::AdjustBalance
+                | Field::NutritionBudget
+                | Field::AllowanceBudget
+                | Field::CombinedBudget
+        );
         let accepted = if decimal {
             chars.chars().all(|c| {
                 c.is_ascii_digit()
@@ -376,7 +383,7 @@ impl Finances {
             cx.notify();
             return;
         }
-        let amount_czk = (amount * rate).round() as i64;
+        let amount_czk = (amount * rate * 100.0).round() as i64;
         if amount_czk <= 0 {
             self.status = Some("amount is too small to be worth 1 CZK".into());
             cx.notify();
@@ -474,7 +481,7 @@ impl Finances {
             cx.notify();
             return;
         }
-        let target = (target * rate).round() as i64;
+        let target = (target * rate * 100.0).round() as i64;
         let (start, end) = {
             let period = self.period();
             (period.start, period.end)
@@ -536,12 +543,12 @@ impl Finances {
             cx.notify();
             return;
         }
-        let amount = amount.round() as i64;
+        let amount = (amount * 100.0).round() as i64;
         let index = self.selected_period;
         self.data.periods[index].set_budget(category, amount);
         match category {
-            Category::Nutrition => self.nutrition_budget = amount.to_string(),
-            Category::Allowance => self.allowance_budget = amount.to_string(),
+            Category::Nutrition => self.nutrition_budget = amount_input(amount),
+            Category::Allowance => self.allowance_budget = amount_input(amount),
         }
         if self.persist() {
             self.status = Some(format!(
@@ -564,10 +571,10 @@ impl Finances {
             cx.notify();
             return;
         }
-        let amount = amount.round() as i64;
+        let amount = (amount * 100.0).round() as i64;
         let index = self.selected_period;
         self.data.periods[index].set_combined_balance(amount);
-        self.combined_budget = amount.to_string();
+        self.combined_budget = amount_input(amount);
         if self.persist() {
             self.status = Some(format!("window balance set to {}", money(amount)));
         }
@@ -602,9 +609,9 @@ impl Finances {
                 period.combined_balance(),
             )
         };
-        self.nutrition_budget = nutrition.to_string();
-        self.allowance_budget = allowance.to_string();
-        self.combined_budget = combined.to_string();
+        self.nutrition_budget = amount_input(nutrition);
+        self.allowance_budget = amount_input(allowance);
+        self.combined_budget = amount_input(combined);
 
         // Keep the entry date inside the window being viewed, so adding while
         // browsing history lands in that window.
@@ -2567,6 +2574,10 @@ impl Render for Finances {
             .children(self.picker_backdrop(window, cx))
             .children(self.picker_overlay(cx))
     }
+}
+
+fn amount_input(minor: i64) -> String {
+    format!("{:.2}", minor as f64 / 100.0)
 }
 
 fn format_date(date: NaiveDate) -> String {

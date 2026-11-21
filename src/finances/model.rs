@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::currency::Currency;
 use crate::data;
 
-pub const VERSION: u32 = 6;
+pub const VERSION: u32 = 7;
 const FILE: &str = "finances.toml";
 
 /// Spending categories. Fixed for now; can move to config if they grow.
@@ -46,7 +46,7 @@ impl Category {
 #[serde(deny_unknown_fields)]
 pub struct CategoryBudget {
     pub category: Category,
-    /// Whole CZK available for this category in this window.
+    /// Available for this category in this window, in minor units (0.01 CZK).
     pub amount_czk: i64,
 }
 
@@ -149,7 +149,7 @@ pub struct Transaction {
     pub date: NaiveDate,
     /// Local clock time; kept for ordering and for the ledger display.
     pub time: NaiveTime,
-    /// Canonical value in whole CZK, fixed when the transaction was entered.
+    /// Canonical value in minor units (0.01 CZK), fixed at entry time.
     pub amount_czk: i64,
     /// What the user typed, in `currency` (equal to `amount_czk` for CZK).
     pub original_amount: f64,
@@ -168,7 +168,7 @@ pub struct Transaction {
 pub struct Adjustment {
     pub date: NaiveDate,
     pub time: NaiveTime,
-    /// Positive raises the balance, negative lowers it.
+    /// Positive raises the balance, negative lowers it. Minor units (0.01 CZK).
     pub delta_czk: i64,
     pub category: Category,
 }
@@ -220,30 +220,46 @@ impl FinanceData {
         let data = match probe.version {
             VERSION => toml::from_str::<FinanceData>(&text)
                 .with_context(|| format!("parsing {}", path.display()))?,
+            6 => {
+                let mut data: FinanceData = toml::from_str(&text)
+                    .with_context(|| format!("migrating {}", path.display()))?;
+                scale_to_minor(&mut data);
+                data
+            }
             5 => {
                 let old: V5 = toml::from_str(&text)
                     .with_context(|| format!("migrating {}", path.display()))?;
-                migrate_v5(old)
+                let mut data = migrate_v5(old);
+                scale_to_minor(&mut data);
+                data
             }
             4 => {
                 let old: V4 = toml::from_str(&text)
                     .with_context(|| format!("migrating {}", path.display()))?;
-                migrate_v4(old)
+                let mut data = migrate_v4(old);
+                scale_to_minor(&mut data);
+                data
             }
             3 => {
                 let old: V3 = toml::from_str(&text)
                     .with_context(|| format!("migrating {}", path.display()))?;
-                migrate_v3(old)
+                let mut data = migrate_v3(old);
+                scale_to_minor(&mut data);
+                data
             }
             2 => {
                 let old: V2 = toml::from_str(&text)
                     .with_context(|| format!("migrating {}", path.display()))?;
-                migrate_v2(old)
+                let mut data = migrate_v2(old);
+                scale_to_minor(&mut data);
+                data
             }
             1 => {
                 let old: V1 = toml::from_str(&text)
                     .with_context(|| format!("migrating {}", path.display()))?;
-                migrate_v1(old)
+                let mut data = migrate_v1(old);
+                scale_to_minor(&mut data);
+                data
             }
             other => bail!("unsupported finance data version {other} (expected {VERSION})"),
         };
@@ -353,6 +369,23 @@ pub fn days_in_month(date: NaiveDate) -> u32 {
 #[derive(Deserialize)]
 struct VersionProbe {
     version: u32,
+}
+
+/// Pre-v7 stored whole CZK; convert every amount to hundredths.
+fn scale_to_minor(data: &mut FinanceData) {
+    data.version = VERSION;
+    for period in &mut data.periods {
+        for budget in &mut period.budgets {
+            budget.amount_czk *= 100;
+        }
+        period.combined_budget = period.combined_budget.map(|amount| amount * 100);
+    }
+    for tx in &mut data.transactions {
+        tx.amount_czk *= 100;
+    }
+    for adj in &mut data.adjustments {
+        adj.delta_czk *= 100;
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
