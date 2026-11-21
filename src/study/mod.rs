@@ -595,9 +595,9 @@ impl Study {
                     .when(focused, |el| {
                         el.child(
                             div()
-                                .ml(px(theme::space::DOT_GAP))
-                                .text_color(rgb(theme::color::ACCENT))
-                                .child("▌")
+                                .w(px(theme::geometry::HAIRLINE))
+                                .h(px(theme::type_scale::FIELD + 2.0))
+                                .bg(rgb(theme::color::ACCENT))
                                 .with_animation(
                                     format!("study-caret-{field:?}"),
                                     Animation::new(Duration::from_millis(900)).repeat(),
