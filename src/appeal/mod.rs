@@ -82,6 +82,88 @@ impl Appeal {
     pub fn since(&self) -> NaiveDateTime {
         self.data.last_relapse
     }
+
+    /// Whether the daily skincare routine is already checked for today.
+    pub fn skin_done_today(&self) -> bool {
+        self.data.skin_last_done == Some(Local::now().date_naive())
+    }
+
+    /// Check the routine for today, or uncheck it if it is already done.
+    pub fn toggle_skin(&mut self, cx: &mut Context<Self>) {
+        let today = Local::now().date_naive();
+        self.data.skin_last_done = if self.data.skin_last_done == Some(today) {
+            None
+        } else {
+            Some(today)
+        };
+        self.status = match self.data.save() {
+            Ok(()) => None,
+            Err(error) => Some(format!("save failed: {error:#}")),
+        };
+        cx.notify();
+    }
+
+    fn skin_check(&self, cx: &Context<Self>) -> impl IntoElement {
+        let done = self.skin_done_today();
+        div()
+            .id("appeal-skin")
+            .w(px(theme::geometry::CLOCK_BOX))
+            .flex()
+            .items_center()
+            .justify_between()
+            .gap(px(theme::space::TIGHT))
+            .px(px(theme::space::ITEM_X))
+            .py(px(theme::space::ITEM_Y))
+            .border_1()
+            .border_color(rgb(if done {
+                theme::color::ACCENT
+            } else {
+                theme::color::SURFACE
+            }))
+            .bg(rgb(theme::color::SURFACE).alpha(0.12))
+            .cursor_pointer()
+            .hover(|style| style.border_color(rgb(theme::color::ACCENT)))
+            .on_click(cx.listener(|this, _: &ClickEvent, _, cx| this.toggle_skin(cx)))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(theme::space::TIGHT))
+                    .child(
+                        div()
+                            .size(px(theme::geometry::DOT * 4.0))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .border_1()
+                            .border_color(rgb(if done {
+                                theme::color::ACCENT
+                            } else {
+                                theme::color::SURFACE
+                            }))
+                            .when(done, |el| el.bg(rgb(theme::color::ACCENT)))
+                            .text_size(px(theme::type_scale::MINI))
+                            .text_color(rgb(theme::color::BACKGROUND))
+                            .child(if done { "✓" } else { "" }),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(theme::type_scale::KICKER))
+                            .text_color(rgb(theme::color::SEA_GREEN))
+                            .child("SKINCARE ROUTINE"),
+                    ),
+            )
+            .child(
+                div()
+                    .text_size(px(theme::type_scale::MINI))
+                    .text_color(rgb(if done {
+                        theme::color::ACCENT
+                    } else {
+                        theme::color::MUTED
+                    }))
+                    .child(if done { "done today" } else { "tap when done" }),
+            )
+    }
 }
 
 /// Shared clock body used by the appeal tab and the informational copy on main.
@@ -185,6 +267,7 @@ impl Render for Appeal {
                             .child("RESET CLOCK"),
                     ),
             )
+            .child(self.skin_check(cx))
             .when_some(self.status.clone(), |el, status| {
                 el.child(
                     div()

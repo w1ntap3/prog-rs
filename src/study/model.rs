@@ -28,6 +28,8 @@ pub enum Attendance {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Assignment {
+    #[serde(default)]
+    pub name: String,
     /// Short course id, e.g. `PRS`.
     pub subject: String,
     pub deadline: NaiveDateTime,
@@ -36,6 +38,8 @@ pub struct Assignment {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Assessment {
+    #[serde(default)]
+    pub name: String,
     pub subject: String,
     /// When the assessment takes place.
     pub when: NaiveDateTime,
@@ -125,6 +129,7 @@ mod tests {
         data.attendance
             .insert("BE5B01PRS|2026-11-02|09:15|lecture".into(), Attendance::Attended);
         data.assignments.push(Assignment {
+            name: "Homework 1".into(),
             subject: "PRS".into(),
             deadline: NaiveDate::from_ymd_opt(2026, 11, 25)
                 .unwrap()
@@ -132,6 +137,7 @@ mod tests {
                 .unwrap(),
         });
         data.assessments.push(Assessment {
+            name: "Midterm".into(),
             subject: "ALG".into(),
             when: NaiveDate::from_ymd_opt(2026, 12, 18)
                 .unwrap()

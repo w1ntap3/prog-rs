@@ -1,8 +1,9 @@
 //! Appeal records: the private data behind the `appeal` section.
 //!
-//! The only fact stored is the timestamp of the last relapse; the clock in the
-//! UI is derived from it. Data lives in the private data dir (`appeal.toml`),
-//! so it is included in data export/import and never in the repo.
+//! Stored facts: the timestamp of the last relapse (the UI clock is derived
+//! from it) and the last local date the daily skincare routine was completed.
+//! Data lives in the private data dir (`appeal.toml`), so it is included in
+//! data export/import and never in the repo.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -21,6 +22,11 @@ const FILE: &str = "appeal.toml";
 pub struct AppealData {
     pub version: u32,
     pub last_relapse: NaiveDateTime,
+    /// Local date of the last completed daily skincare routine. `None` means
+    /// it has never been checked; the UI treats any date before today as
+    /// unchecked, so the item resets at local midnight.
+    #[serde(default)]
+    pub skin_last_done: Option<NaiveDate>,
 }
 
 impl Default for AppealData {
@@ -28,6 +34,7 @@ impl Default for AppealData {
         Self {
             version: VERSION,
             last_relapse: now_seconds(),
+            skin_last_done: None,
         }
     }
 }
@@ -175,9 +182,26 @@ mod tests {
         let data = AppealData {
             version: VERSION,
             last_relapse: dt(2026, 11, 1, 9, 30, 0),
+            skin_last_done: Some(NaiveDate::from_ymd_opt(2026, 11, 21).unwrap()),
         };
         data.save_to(&path).unwrap();
         assert_eq!(AppealData::load_from(&path).unwrap(), data);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn legacy_file_without_skin_field_loads_as_unchecked() {
+        let dir = std::env::temp_dir().join(format!("progrs-appeal-legacy-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(FILE);
+        fs::write(
+            &path,
+            "version = 1\nlast_relapse = \"2026-11-01T09:30:00\"\n",
+        )
+        .unwrap();
+        let data = AppealData::load_from(&path).unwrap();
+        assert_eq!(data.skin_last_done, None);
         fs::remove_dir_all(&dir).unwrap();
     }
 }

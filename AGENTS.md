@@ -172,14 +172,17 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   inline dropdown, enter a `YYYY-MM-DD HH:MM` deadline/when, and the list is
   persisted. `main` shows the same three-number stats row for the current
   month.
-- Appeal stores only `last_relapse` in `appeal.toml` and derives a
+- Appeal stores `last_relapse` plus the last skincare-routine date
+  (`skin_last_done`) in `appeal.toml` and derives a
   `MM:DD:HH:MM:SS` clock (calendar months, then days/hours/minutes/seconds) in
   the UI. The appeal tab is a centered square panel with a `RELAPSE-FREE`
   header, the last-relapse timestamp, five labeled segments
   (months/days/hours/minutes/seconds) and a `RESET CLOCK` button; resetting is
   confirmed through `modal.rs`, which dims the whole app and where Escape
-  cancels instead of quitting. `main` shows the same clock without the reset
-  control.
+  cancels instead of quitting. Below the panel sits a clickable daily
+  `SKINCARE ROUTINE` check: it is checked when `skin_last_done` is today and
+  reads as unchecked again after local midnight; clicking toggles it.
+  `main` shows the same clock without the reset control.
 - `main` groups every section summary under an explicit section label (for now
   FINANCES, STUDY and APPEAL) via `AppRoot::main_block`, separated by
   hairlines. New

@@ -50,12 +50,16 @@ enum Panel {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Field {
+    AssignmentName,
     AssignmentDeadline,
+    AssessmentName,
     AssessmentWhen,
 }
 
 struct FocusHandles {
+    assignment_name: gpui::FocusHandle,
     assignment: gpui::FocusHandle,
+    assessment_name: gpui::FocusHandle,
     assessment: gpui::FocusHandle,
 }
 
@@ -65,6 +69,8 @@ pub struct Study {
     status: Option<String>,
     assignment_subject: String,
     assessment_subject: String,
+    assignment_name: String,
+    assessment_name: String,
     assignment_deadline: String,
     assessment_when: String,
     open_subject: Option<Panel>,
@@ -99,11 +105,15 @@ impl Study {
             status,
             assignment_subject: default_subject.clone(),
             assessment_subject: default_subject,
+            assignment_name: String::new(),
+            assessment_name: String::new(),
             assignment_deadline: now.clone(),
             assessment_when: now,
             open_subject: None,
             focus: FocusHandles {
+                assignment_name: cx.focus_handle(),
                 assignment: cx.focus_handle(),
+                assessment_name: cx.focus_handle(),
                 assessment: cx.focus_handle(),
             },
         };
@@ -147,21 +157,27 @@ impl Study {
 
     fn field_value(&self, field: Field) -> &str {
         match field {
+            Field::AssignmentName => &self.assignment_name,
             Field::AssignmentDeadline => &self.assignment_deadline,
+            Field::AssessmentName => &self.assessment_name,
             Field::AssessmentWhen => &self.assessment_when,
         }
     }
 
     fn field_value_mut(&mut self, field: Field) -> &mut String {
         match field {
+            Field::AssignmentName => &mut self.assignment_name,
             Field::AssignmentDeadline => &mut self.assignment_deadline,
+            Field::AssessmentName => &mut self.assessment_name,
             Field::AssessmentWhen => &mut self.assessment_when,
         }
     }
 
     fn focus_handle(&self, field: Field) -> &gpui::FocusHandle {
         match field {
+            Field::AssignmentName => &self.focus.assignment_name,
             Field::AssignmentDeadline => &self.focus.assignment,
+            Field::AssessmentName => &self.focus.assessment_name,
             Field::AssessmentWhen => &self.focus.assessment,
         }
     }
@@ -182,16 +198,18 @@ impl Study {
         let key = event.keystroke.key.as_str();
         if key == "tab" {
             let next = match field {
-                Field::AssignmentDeadline => Field::AssessmentWhen,
-                Field::AssessmentWhen => Field::AssignmentDeadline,
+                Field::AssignmentName => Field::AssignmentDeadline,
+                Field::AssignmentDeadline => Field::AssessmentName,
+                Field::AssessmentName => Field::AssessmentWhen,
+                Field::AssessmentWhen => Field::AssignmentName,
             };
             self.focus_field(next, window, cx);
             return;
         }
         if key == "enter" {
             match field {
-                Field::AssignmentDeadline => self.add_assignment(cx),
-                Field::AssessmentWhen => self.add_assessment(cx),
+                Field::AssignmentName | Field::AssignmentDeadline => self.add_assignment(cx),
+                Field::AssessmentName | Field::AssessmentWhen => self.add_assessment(cx),
             }
             return;
         }
@@ -211,9 +229,11 @@ impl Study {
         let Some(chars) = event.keystroke.key_char.as_deref() else {
             return;
         };
-        if chars
-            .chars()
-            .all(|c| c.is_ascii_digit() || c == '-' || c == ':' || c == ' ')
+        let datetime = matches!(field, Field::AssignmentDeadline | Field::AssessmentWhen);
+        if !datetime
+            || chars
+                .chars()
+                .all(|c| c.is_ascii_digit() || c == '-' || c == ':' || c == ' ')
         {
             self.field_value_mut(field).push_str(chars);
             cx.notify();
@@ -251,10 +271,18 @@ impl Study {
             cx.notify();
             return;
         };
+        let name = self.assignment_name.trim().to_owned();
+        if name.is_empty() {
+            self.status = Some("give the assignment a name first".into());
+            cx.notify();
+            return;
+        }
         self.data.assignments.push(Assignment {
+            name,
             subject: self.assignment_subject.clone(),
             deadline,
         });
+        self.assignment_name.clear();
         self.assignment_deadline = Local::now().naive_local().format("%Y-%m-%d %H:%M").to_string();
         self.open_subject = None;
         self.persist(cx);
@@ -266,10 +294,18 @@ impl Study {
             cx.notify();
             return;
         };
+        let name = self.assessment_name.trim().to_owned();
+        if name.is_empty() {
+            self.status = Some("give the assessment a name first".into());
+            cx.notify();
+            return;
+        }
         self.data.assessments.push(Assessment {
+            name,
             subject: self.assessment_subject.clone(),
             when,
         });
+        self.assessment_name.clear();
         self.assessment_when = Local::now().naive_local().format("%Y-%m-%d %H:%M").to_string();
         self.open_subject = None;
         self.persist(cx);
@@ -448,7 +484,7 @@ impl Study {
     fn text_field(
         &self,
         field: Field,
-        width: f32,
+        placeholder: &str,
         window: &Window,
         cx: &Context<Self>,
     ) -> impl IntoElement {
@@ -456,9 +492,15 @@ impl Study {
         let focused = focus.is_focused(window);
         let focus = focus.clone();
         let value = self.field_value(field).to_owned();
+        let empty = value.is_empty();
+        let shown = if empty {
+            placeholder.to_owned()
+        } else {
+            value
+        };
         div()
             .id(format!("study-field-{field:?}"))
-            .w(px(width))
+            .w_full()
             .px(px(theme::space::FIELD_X))
             .py(px(theme::space::FIELD_Y))
             .border_b_1()
@@ -470,7 +512,11 @@ impl Study {
             .flex()
             .items_center()
             .text_size(px(theme::type_scale::FIELD))
-            .text_color(rgb(theme::color::FOREGROUND))
+            .text_color(rgb(if empty {
+                theme::color::MUTED
+            } else {
+                theme::color::FOREGROUND
+            }))
             .cursor_text()
             .track_focus(&focus)
             .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
@@ -479,7 +525,7 @@ impl Study {
             .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
                 this.key(field, event, window, cx)
             }))
-            .child(div().child(value))
+            .child(div().child(shown))
             .when(focused, |el| {
                 el.child(
                     div()
@@ -505,7 +551,7 @@ impl Study {
             &'static str,
             &'static str,
             Field,
-            Vec<(usize, String, NaiveDateTime)>,
+            Vec<(usize, String, String, NaiveDateTime)>,
         ) = match panel {
             Panel::Assignments => (
                 "ASSIGNMENTS",
@@ -518,6 +564,7 @@ impl Study {
                     .map(|(index, assignment)| {
                         (
                             index,
+                            assignment.name.clone(),
                             assignment.subject.clone(),
                             assignment.deadline,
                         )
@@ -533,13 +580,18 @@ impl Study {
                     .iter()
                     .enumerate()
                     .map(|(index, assessment)| {
-                        (index, assessment.subject.clone(), assessment.when)
+                        (
+                            index,
+                            assessment.name.clone(),
+                            assessment.subject.clone(),
+                            assessment.when,
+                        )
                     })
                     .collect(),
             ),
         };
         let mut entries = entries;
-        entries.sort_by_key(|(_, _, at)| *at);
+        entries.sort_by_key(|(_, _, _, at)| *at);
         let empty = entries.is_empty();
         let subject = self.subject(panel).to_owned();
         let open = self.open_subject == Some(panel);
@@ -558,6 +610,18 @@ impl Study {
                     .text_color(rgb(theme::color::SEA_GREEN))
                     .child(title),
             )
+            .child(self.text_field(
+                match panel {
+                    Panel::Assignments => Field::AssignmentName,
+                    Panel::Assessments => Field::AssessmentName,
+                },
+                match panel {
+                    Panel::Assignments => "assignment name",
+                    Panel::Assessments => "assessment name",
+                },
+                window,
+                cx,
+            ))
             .child(
                 div()
                     .flex()
@@ -584,7 +648,11 @@ impl Study {
                             }))
                             .child(format!("{subject} ▾")),
                     )
-                    .child(self.text_field(field, theme::geometry::FIELD_AMOUNT_W, window, cx))
+                    .child(
+                        div()
+                            .w(px(theme::geometry::FIELD_AMOUNT_W))
+                            .child(self.text_field(field, "", window, cx)),
+                    )
                     .child(
                         div()
                             .id(format!("study-add-{panel:?}"))
@@ -644,7 +712,7 @@ impl Study {
                 div()
                     .flex()
                     .flex_col()
-                    .children(entries.into_iter().map(|(index, subject, at)| {
+                    .children(entries.into_iter().map(|(index, name, subject, at)| {
                         div()
                             .flex()
                             .items_center()
@@ -654,17 +722,40 @@ impl Study {
                             .border_color(rgb(theme::color::SURFACE))
                             .child(
                                 div()
-                                    .text_size(px(theme::type_scale::LEDGER))
-                                    .font_weight(FontWeight(theme::weight::NAV_ACTIVE))
-                                    .text_color(rgb(theme::color::ACCENT))
-                                    .child(subject),
-                            )
-                            .child(
-                                div()
                                     .flex_1()
-                                    .text_size(px(theme::type_scale::MINI))
-                                    .text_color(rgb(theme::color::MUTED))
-                                    .child(at.format("%d-%b-%Y %H:%M").to_string()),
+                                    .min_w_0()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(0.))
+                                    .child(
+                                        div()
+                                            .truncate()
+                                            .text_size(px(theme::type_scale::LEDGER))
+                                            .text_color(rgb(theme::color::FOREGROUND))
+                                            .child(if name.trim().is_empty() {
+                                                "untitled".to_owned()
+                                            } else {
+                                                name
+                                            }),
+                                    )
+                                    .child(
+                                        div()
+                                            .flex()
+                                            .items_center()
+                                            .gap(px(theme::space::DOT_GAP))
+                                            .child(
+                                                div()
+                                                    .text_size(px(theme::type_scale::MINI))
+                                                    .text_color(rgb(theme::color::ACCENT))
+                                                    .child(subject),
+                                            )
+                                            .child(
+                                                div()
+                                                    .text_size(px(theme::type_scale::MINI))
+                                                    .text_color(rgb(theme::color::MUTED))
+                                                    .child(at.format("%d-%b-%Y %H:%M").to_string()),
+                                            ),
+                                    ),
                             )
                             .child(
                                 div()
