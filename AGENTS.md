@@ -158,17 +158,20 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   by `space::CARD_GAP`. Top row = two KPI cards (variance slideshow, and
   break-even/day plus day/left/average-plan metadata). Then a full-width chart
   card whose header holds the category/window controls, legend and combined
-  mode switch, with a `GRAPH_HEIGHT` (220px) canvas and a last/next payday
-  footer. The bottom row is `1fr 1.1fr 1.8fr`: window settings (3-column date/
-  balance grid plus add-window footer), add transaction (kind/currency pills,
-  category pills when split, stacked amount/note, date/time row, full-width
-  add), and one merged transactions+corrections card split `1.2fr 1fr` by an
-  internal divider. Ledger/correction lists scroll inside their own capped
-  area (`LEDGER_MAX_HEIGHT`) rather than scrolling the page. Because gpui flex
-  items keep their content's minimum width, the page and the three bottom
-  columns are pinned to pixel widths derived from the viewport minus the
-  sidebar and content padding (fractional widths otherwise widen the page and
-  squeeze the sidebar).
+  mode switch, a plot that grows into leftover height (`GRAPH_MIN_HEIGHT`
+  floor) and a last/next payday footer. The bottom row is `1fr 1.15fr 2fr`:
+  window settings (date/balance grid with its add-window footer pushed to the
+  card bottom), add transaction (separate kind and currency pill rows,
+  category pills when split, stacked amount/note, date/time + current-time/
+  enter hints row, full-width add), and one merged transactions+corrections
+  card split `1.2fr 1fr` by an internal divider. Balance correction uses two
+  rows: date/time/now, then balance/correct. Ledger/correction lists scroll
+  inside their own capped area (`LEDGER_MAX_HEIGHT`) rather than scrolling the
+  page. Because gpui flex items keep their content's minimum width, the page
+  and the three bottom columns are pinned to viewport-derived pixel widths and
+  heights (fractional/auto sizing otherwise widens the page and squeezes the
+  sidebar); bottom cards and the two logs columns also clip (`overflow_hidden`)
+  so their contents can never push the grid wider.
 - Study is a fixed winter-semester timetable in `study/schedule.rs` (1 Nov
   2026 - 10 Jan 2027; summer is intentionally absent). Attendance, assignment
   deadlines and assessment times are user data in `study.toml`; attendance

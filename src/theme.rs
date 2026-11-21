@@ -43,8 +43,8 @@ pub mod geometry {
     pub const RULE_H: f32 = 2.0;
     /// Slideshow band height.
     pub const SLIDE_HEIGHT: f32 = 104.0;
-    /// Chart height (the plot area inside it is padded by `space::CHART_PAD_*`).
-    pub const GRAPH_HEIGHT: f32 = 220.0;
+    /// Minimum plot height; the chart card grows into leftover viewport space.
+    pub const GRAPH_MIN_HEIGHT: f32 = 150.0;
     /// Stroked chart lines.
     pub const LINE_W: f32 = 1.5;
     /// Hairline separators/guides.

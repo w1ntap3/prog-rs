@@ -1598,6 +1598,7 @@ impl Finances {
             .w_full()
             .flex()
             .items_stretch()
+            .flex_shrink_0()
             .gap(px(theme::space::CARD_GAP))
             .child(
                 Self::card()
@@ -1809,6 +1810,8 @@ impl Finances {
 
         Self::card()
             .w_full()
+            .flex_grow(1.0)
+            .min_h(px(theme::geometry::GRAPH_MIN_HEIGHT + 120.0))
             .child(
                 div()
                     .w_full()
@@ -1941,7 +1944,8 @@ impl Finances {
                 div()
                     .id("fin-chart-hover")
                     .relative()
-                    .h(px(theme::geometry::GRAPH_HEIGHT))
+                    .flex_grow(1.0)
+                    .min_h(px(theme::geometry::GRAPH_MIN_HEIGHT))
                     .w_full()
                     .on_mouse_move(cx.listener(
                         |this, event: &MouseMoveEvent, _, cx| {
@@ -1999,11 +2003,17 @@ impl Finances {
                 div()
                     .w_full()
                     .flex()
-                    .flex_wrap()
                     .items_center()
                     .gap(px(theme::space::TIGHT))
                     .child(self.kind_button(Kind::Expense, cx))
-                    .child(self.kind_button(Kind::Income, cx))
+                    .child(self.kind_button(Kind::Income, cx)),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .items_center()
+                    .gap(px(theme::space::TIGHT))
                     .child(self.currency_button(Currency::Czk, cx))
                     .child(self.currency_button(Currency::Eur, cx))
                     .child(self.currency_button(Currency::Azn, cx)),
@@ -2046,7 +2056,14 @@ impl Finances {
                             )),
                     )
                     .child(self.time_button(TimeTarget::Transaction, cx))
-                    .child(Self::now_button(TimeTarget::Transaction, cx)),
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(theme::space::TIGHT))
+                            .child(Self::now_button(TimeTarget::Transaction, cx))
+                            .child(Self::hint("enter adds")),
+                    ),
             )
             .child(div().flex_grow(1.0))
             .child(
@@ -2073,7 +2090,6 @@ impl Finances {
                     }))
                     .child("add"),
             )
-            .child(Self::hint("enter adds"))
     }
 
     fn window_panel(&self, cx: &Context<Self>, window: &Window) -> impl IntoElement {
@@ -2084,159 +2100,180 @@ impl Finances {
 
         Self::card()
             .h_full()
-            .child(Self::kicker("window settings"))
+            .justify_between()
             .child(
                 div()
                     .w_full()
                     .flex()
-                    .items_end()
+                    .flex_col()
                     .gap(px(theme::space::TIGHT))
+                    .child(Self::kicker("window settings"))
                     .child(
                         div()
-                            .flex_1()
-                            .min_w_0()
-                            .child(self.date_button(
-                                "last payday",
-                                start,
-                                DateTarget::PeriodStart,
-                                cx,
-                            )),
+                            .w_full()
+                            .flex()
+                            .items_end()
+                            .gap(px(theme::space::TIGHT))
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .child(self.date_button(
+                                        "last payday",
+                                        start,
+                                        DateTarget::PeriodStart,
+                                        cx,
+                                    )),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .child(self.date_button(
+                                        "next payday",
+                                        end,
+                                        DateTarget::PeriodEnd,
+                                        cx,
+                                    )),
+                            )
+                            .when(combined, |el| {
+                                el.child(
+                                    div().flex_1().min_w_0().child(Self::labeled(
+                                        "window balance",
+                                        self.field(Field::CombinedBudget, "CZK", window, cx),
+                                    )),
+                                )
+                            }),
                     )
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .child(self.date_button(
-                                "next payday",
-                                end,
-                                DateTarget::PeriodEnd,
-                                cx,
-                            )),
-                    )
-                    .when(combined, |el| {
+                    .when(!combined, |el| {
                         el.child(
-                            div().flex_1().min_w_0().child(Self::labeled(
-                                "window balance",
-                                self.field(Field::CombinedBudget, "CZK", window, cx),
-                            )),
+                            div()
+                                .w_full()
+                                .flex()
+                                .items_end()
+                                .gap(px(theme::space::TIGHT))
+                                .child(
+                                    div().flex_1().min_w_0().child(Self::labeled(
+                                        "nutrition balance",
+                                        self.field(Field::NutritionBudget, "CZK", window, cx),
+                                    )),
+                                )
+                                .child(
+                                    div().flex_1().min_w_0().child(Self::labeled(
+                                        "allowance balance",
+                                        self.field(Field::AllowanceBudget, "CZK", window, cx),
+                                    )),
+                                ),
                         )
                     }),
             )
-            .when(!combined, |el| {
-                el.child(
-                    div()
-                        .w_full()
-                        .flex()
-                        .items_end()
-                        .gap(px(theme::space::TIGHT))
-                        .child(
-                            div().flex_1().min_w_0().child(Self::labeled(
-                                "nutrition balance",
-                                self.field(Field::NutritionBudget, "CZK", window, cx),
-                            )),
-                        )
-                        .child(
-                            div().flex_1().min_w_0().child(Self::labeled(
-                                "allowance balance",
-                                self.field(Field::AllowanceBudget, "CZK", window, cx),
-                            )),
-                        ),
-                )
-            })
             .child(
                 div()
                     .w_full()
                     .flex()
-                    .items_center()
-                    .justify_between()
+                    .flex_col()
+                    .gap(px(theme::space::TIGHT))
                     .child(
                         div()
-                            .id("fin-add-window")
-                            .px(px(theme::space::ITEM_X))
-                            .py(px(theme::space::ITEM_Y - 2.))
-                            .border_1()
-                            .border_color(rgb(theme::color::SURFACE))
-                            .bg(rgb(theme::color::SURFACE).alpha(0.08))
-                            .text_size(px(theme::type_scale::MINI))
-                            .text_color(rgb(theme::color::MUTED))
-                            .cursor_pointer()
-                            .hover(|style| style.text_color(rgb(theme::color::ACCENT)))
-                            .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
-                                this.open_new_window(cx)
-                            }))
-                            .child("+ add window"),
+                            .w_full()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .child(
+                                div()
+                                    .id("fin-add-window")
+                                    .px(px(theme::space::ITEM_X))
+                                    .py(px(theme::space::ITEM_Y - 2.))
+                                    .border_1()
+                                    .border_color(rgb(theme::color::SURFACE))
+                                    .bg(rgb(theme::color::SURFACE).alpha(0.08))
+                                    .text_size(px(theme::type_scale::MINI))
+                                    .text_color(rgb(theme::color::MUTED))
+                                    .cursor_pointer()
+                                    .hover(|style| {
+                                        style.text_color(rgb(theme::color::ACCENT))
+                                    })
+                                    .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
+                                        this.open_new_window(cx)
+                                    }))
+                                    .child("+ add window"),
+                            )
+                            .child(Self::hint(if combined {
+                                "one pot · enter to apply"
+                            } else {
+                                "enter to apply"
+                            })),
                     )
-                    .child(Self::hint(if combined {
-                        "one pot · enter to apply"
-                    } else {
-                        "enter to apply"
-                    })),
+                    .when_some(self.new_window, |el, (start, end)| {
+                        el.child(
+                            div()
+                                .w_full()
+                                .flex()
+                                .flex_wrap()
+                                .items_end()
+                                .gap(px(theme::space::TIGHT))
+                                .child(
+                                    div().flex_1().min_w_0().child(self.date_button(
+                                        "starts",
+                                        start,
+                                        DateTarget::NewStart,
+                                        cx,
+                                    )),
+                                )
+                                .child(
+                                    div().flex_1().min_w_0().child(self.date_button(
+                                        "ends",
+                                        end,
+                                        DateTarget::NewEnd,
+                                        cx,
+                                    )),
+                                )
+                                .child(
+                                    div()
+                                        .id("fin-create-window")
+                                        .px(px(theme::space::ITEM_X))
+                                        .py(px(theme::space::ITEM_Y - 2.))
+                                        .border_1()
+                                        .border_color(rgb(theme::color::SURFACE))
+                                        .bg(rgb(theme::color::SURFACE).alpha(0.08))
+                                        .text_size(px(theme::type_scale::MINI))
+                                        .text_color(rgb(theme::color::ACCENT))
+                                        .cursor_pointer()
+                                        .hover(|style| {
+                                            style.text_color(rgb(theme::color::FOREGROUND))
+                                        })
+                                        .on_click(cx.listener(
+                                            |this, _: &ClickEvent, _, cx| {
+                                                this.create_window(cx)
+                                            },
+                                        ))
+                                        .child("add window"),
+                                )
+                                .child(
+                                    div()
+                                        .id("fin-cancel-window")
+                                        .px(px(theme::space::ITEM_X))
+                                        .py(px(theme::space::ITEM_Y - 2.))
+                                        .border_1()
+                                        .border_color(rgb(theme::color::SURFACE))
+                                        .bg(rgb(theme::color::SURFACE).alpha(0.08))
+                                        .text_size(px(theme::type_scale::MINI))
+                                        .text_color(rgb(theme::color::MUTED))
+                                        .cursor_pointer()
+                                        .hover(|style| {
+                                            style.text_color(rgb(theme::color::FOREGROUND))
+                                        })
+                                        .on_click(cx.listener(
+                                            |this, _: &ClickEvent, _, cx| {
+                                                this.new_window = None;
+                                                cx.notify();
+                                            },
+                                        ))
+                                        .child("cancel"),
+                                ),
+                        )
+                    }),
             )
-            .when_some(self.new_window, |el, (start, end)| {
-                el.child(
-                    div()
-                        .w_full()
-                        .flex()
-                        .flex_wrap()
-                        .items_end()
-                        .gap(px(theme::space::TIGHT))
-                        .child(
-                            div().flex_1().min_w_0().child(self.date_button(
-                                "starts",
-                                start,
-                                DateTarget::NewStart,
-                                cx,
-                            )),
-                        )
-                        .child(
-                            div().flex_1().min_w_0().child(self.date_button(
-                                "ends",
-                                end,
-                                DateTarget::NewEnd,
-                                cx,
-                            )),
-                        )
-                        .child(
-                            div()
-                                .id("fin-create-window")
-                                .px(px(theme::space::ITEM_X))
-                                .py(px(theme::space::ITEM_Y - 2.))
-                                .border_1()
-                                .border_color(rgb(theme::color::SURFACE))
-                                .bg(rgb(theme::color::SURFACE).alpha(0.08))
-                                .text_size(px(theme::type_scale::MINI))
-                                .text_color(rgb(theme::color::ACCENT))
-                                .cursor_pointer()
-                                .hover(|style| {
-                                    style.text_color(rgb(theme::color::FOREGROUND))
-                                })
-                                .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
-                                    this.create_window(cx)
-                                }))
-                                .child("add window"),
-                        )
-                        .child(
-                            div()
-                                .id("fin-cancel-window")
-                                .px(px(theme::space::ITEM_X))
-                                .py(px(theme::space::ITEM_Y - 2.))
-                                .border_1()
-                                .border_color(rgb(theme::color::SURFACE))
-                                .bg(rgb(theme::color::SURFACE).alpha(0.08))
-                                .text_size(px(theme::type_scale::MINI))
-                                .text_color(rgb(theme::color::MUTED))
-                                .cursor_pointer()
-                                .hover(|style| {
-                                    style.text_color(rgb(theme::color::FOREGROUND))
-                                })
-                                .on_click(cx.listener(|this, _: &ClickEvent, _, cx| {
-                                    this.new_window = None;
-                                    cx.notify();
-                                }))
-                                .child("cancel"),
-                        ),
-                )
-            })
     }
 
     fn corrections(
@@ -2271,6 +2308,8 @@ impl Finances {
                 format!("-{}", money(-adj.delta_czk))
             };
             div()
+                .w_full()
+                .min_w_0()
                 .flex()
                 .items_center()
                 .gap(px(theme::space::TIGHT))
@@ -2279,6 +2318,7 @@ impl Finances {
                 .border_color(rgb(theme::color::SURFACE))
                 .child(
                     div()
+                        .flex_shrink_0()
                         .w(px(theme::geometry::LEDGER_DATE_W))
                         .text_size(px(theme::type_scale::MINI))
                         .text_color(rgb(theme::color::MUTED))
@@ -2291,18 +2331,22 @@ impl Finances {
                 .child(
                     div()
                         .flex_1()
+                        .min_w_0()
+                        .truncate()
                         .text_size(px(theme::type_scale::LEDGER))
                         .text_color(rgb(theme::color::MUTED))
                         .child("balance correction"),
                 )
                 .child(
                     div()
+                        .flex_shrink_0()
                         .text_size(px(theme::type_scale::LEDGER))
                         .text_color(rgb(theme::color::YELLOW))
                         .child(signed),
                 )
                 .child(
                     div()
+                        .flex_shrink_0()
                         .id(format!("fin-del-adj-{index}"))
                         .px(px(theme::space::DOT_GAP))
                         .text_size(px(theme::type_scale::LEDGER))
@@ -2350,7 +2394,6 @@ impl Finances {
                 div()
                     .w_full()
                     .flex()
-                    .flex_wrap()
                     .items_end()
                     .gap(px(theme::space::TIGHT))
                     .child(
@@ -2362,7 +2405,14 @@ impl Finances {
                         )),
                     )
                     .child(self.time_button(TimeTarget::Adjustment, cx))
-                    .child(Self::now_button(TimeTarget::Adjustment, cx))
+                    .child(Self::now_button(TimeTarget::Adjustment, cx)),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .items_end()
+                    .gap(px(theme::space::TIGHT))
                     .child(
                         div().flex_1().min_w_0().child(Self::labeled(
                             "actual balance",
@@ -2397,6 +2447,8 @@ impl Finances {
                 el.child(
                     div()
                         .id("fin-corrections")
+                        .w_full()
+                        .min_w_0()
                         .flex()
                         .flex_col()
                         .max_h(px(theme::space::LEDGER_MAX_HEIGHT))
@@ -2451,6 +2503,8 @@ impl Finances {
                 tx.note.trim().to_owned()
             };
             div()
+                .w_full()
+                .min_w_0()
                 .flex()
                 .items_center()
                 .gap(px(theme::space::TIGHT))
@@ -2459,6 +2513,7 @@ impl Finances {
                 .border_color(rgb(theme::color::SURFACE))
                 .child(
                     div()
+                        .flex_shrink_0()
                         .w(px(theme::geometry::LEDGER_DATE_W))
                         .text_size(px(theme::type_scale::MINI))
                         .text_color(rgb(theme::color::MUTED))
@@ -2471,6 +2526,7 @@ impl Finances {
                 .child(
                     div()
                         .flex_1()
+                        .min_w_0()
                         .truncate()
                         .text_size(px(theme::type_scale::LEDGER))
                         .text_color(rgb(theme::color::FOREGROUND))
@@ -2478,12 +2534,14 @@ impl Finances {
                 )
                 .child(
                     div()
+                        .flex_shrink_0()
                         .text_size(px(theme::type_scale::LEDGER))
                         .text_color(rgb(amount_color))
                         .child(amount),
                 )
                 .child(
                     div()
+                        .flex_shrink_0()
                         .id(format!("fin-del-{index}"))
                         .px(px(theme::space::DOT_GAP))
                         .text_size(px(theme::type_scale::LEDGER))
@@ -2538,6 +2596,8 @@ impl Finances {
             .child(
                 div()
                     .id("fin-ledger")
+                    .w_full()
+                    .min_w_0()
                     .flex()
                     .flex_col()
                     .max_h(px(theme::space::LEDGER_MAX_HEIGHT))
@@ -2571,6 +2631,7 @@ impl Finances {
                             .flex_grow(1.2)
                             .flex_basis(px(0.))
                             .min_w_0()
+                            .overflow_hidden()
                             .pr(px(theme::space::CARD_PAD))
                             .border_r_1()
                             .border_color(rgb(theme::color::SURFACE))
@@ -2581,6 +2642,7 @@ impl Finances {
                             .flex_grow(1.0)
                             .flex_basis(px(0.))
                             .min_w_0()
+                            .overflow_hidden()
                             .pl(px(theme::space::CARD_PAD))
                             .child(self.corrections(summary, window, cx)),
                     ),
@@ -2602,17 +2664,32 @@ impl Render for Finances {
         // fractional columns feed back into the page width and squeeze the
         // sidebar. Pinning the page and its three bottom columns to the known
         // viewport geometry keeps the whole tab inside one screen.
-        let available = (window.viewport_size().width.as_f32()
+        let viewport = window.viewport_size();
+        let available = (viewport.width.as_f32()
             - theme::geometry::SIDEBAR_WIDTH
             - theme::space::CONTENT_X * 2.0)
             .max(600.0);
         let inner = available - theme::space::CARD_GAP * 2.0;
-        let left_w = inner / 3.9;
-        let mid_w = inner * 1.1 / 3.9;
-        let right_w = inner * 1.8 / 3.9;
+        let left_w = inner / 4.15;
+        let mid_w = inner * 1.15 / 4.15;
+        let right_w = inner * 2.0 / 4.15;
+        // Subtract the app chrome above the finance content (brand, page
+        // padding, breadcrumb/title/rule and their gaps) so the finance page
+        // owns exactly the remaining viewport height.
+        let available_h = (viewport.height.as_f32()
+            - theme::geometry::BRAND_HEIGHT
+            - theme::space::CONTENT_TOP * 2.0
+            - theme::type_scale::KICKER
+            - theme::type_scale::TITLE
+            - theme::geometry::RULE_H
+            - theme::space::KICKER_GAP * 3.0
+            - theme::space::TIGHT
+            - 4.0)
+            .max(480.0);
         div()
             .id("finances-root")
             .w(px(available))
+            .h(px(available_h))
             .flex()
             .flex_col()
             .gap(px(theme::space::CARD_GAP))
@@ -2623,23 +2700,27 @@ impl Render for Finances {
                     .w_full()
                     .flex()
                     .items_stretch()
+                    .flex_shrink_0()
                     .gap(px(theme::space::CARD_GAP))
                     .child(
                         div()
                             .w(px(left_w))
                             .min_w_0()
+                            .overflow_hidden()
                             .child(self.window_panel(cx, window)),
                     )
                     .child(
                         div()
                             .w(px(mid_w))
                             .min_w_0()
+                            .overflow_hidden()
                             .child(self.entry(cx, window)),
                     )
                     .child(
                         div()
                             .w(px(right_w))
                             .min_w_0()
+                            .overflow_hidden()
                             .child(self.logs_card(&summary, window, cx)),
                     ),
             )

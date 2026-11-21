@@ -141,8 +141,7 @@ pub fn plot(
 
     div()
         .relative()
-        .h(px(theme::geometry::GRAPH_HEIGHT))
-        .w_full()
+        .size_full()
         .child(chart.absolute().inset_0())
         .child(
             div()
