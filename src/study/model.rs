@@ -20,6 +20,8 @@ const FILE: &str = "study.toml";
 pub enum Attendance {
     Attended,
     Missed,
+    /// The class did not happen at all; excluded from stats.
+    Cancelled,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

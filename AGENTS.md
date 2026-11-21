@@ -156,8 +156,10 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   user data, stored in `study.toml` with `attended`/`missed` values. The
   calendar is Monday-Friday only, shows short course ids as full-width event
   cards (time + type badge + short id, type-colored accent, today tinted), and
-  clicking a card cycles unmarked -> attended -> missed -> unmarked; future
-  sessions are not clickable and are dimmed. Monthly
+  clicking a card cycles unmarked -> attended -> missed -> didn't happen ->
+  unmarked; the "didn't happen" (yellow) state is only reachable after a class
+  ends and is excluded from stats. Future sessions are not clickable and are
+  dimmed. Monthly
   stats count started classes, with unmarked treated as not attended, for all
   classes, lectures, and labs+seminars; future sessions are not markable.
   The occasional "odd weeks" lab uses ISO week parity until a real academic

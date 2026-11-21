@@ -120,6 +120,10 @@ impl Session {
     pub fn start_at(&self) -> NaiveDateTime {
         self.date.and_time(self.start)
     }
+
+    pub fn end_at(&self) -> NaiveDateTime {
+        self.date.and_time(self.end)
+    }
 }
 
 pub fn semester_start() -> NaiveDate {

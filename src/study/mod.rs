@@ -106,47 +106,18 @@ impl Study {
     }
 
     pub fn summary_for(&self, month: NaiveDate) -> StudySummary {
-        let now = Local::now().naive_local();
-        let mut overall = Stat { attended: 0, total: 0 };
-        let mut lectures = Stat { attended: 0, total: 0 };
-        let mut practice = Stat { attended: 0, total: 0 };
-
-        for session in schedule::sessions_in_month(month) {
-            if session.start_at() > now {
-                continue;
-            }
-            let attended = self.data.attendance.get(&session.key()) == Some(&Attendance::Attended);
-            overall.total += 1;
-            if attended {
-                overall.attended += 1;
-            }
-            if session.kind.counts_as_lecture() {
-                lectures.total += 1;
-                if attended {
-                    lectures.attended += 1;
-                }
-            } else if session.kind.counts_as_practice() {
-                practice.total += 1;
-                if attended {
-                    practice.attended += 1;
-                }
-            }
-        }
-
-        StudySummary {
-            overall,
-            lectures,
-            practice,
-        }
+        summarize_at(&self.data, month, Local::now().naive_local())
     }
 
-    /// Cycle a session: unmarked -> attended -> missed -> unmarked.
-    fn cycle_attendance(&mut self, key: String, cx: &mut Context<Self>) {
-        use Attendance::{Attended, Missed};
+    /// Cycle a session: unmarked -> attended -> missed -> cancelled -> unmarked.
+    /// `cancelled` is only reachable once the session has ended.
+    fn cycle_attendance(&mut self, key: String, allow_cancelled: bool, cx: &mut Context<Self>) {
+        use Attendance::{Attended, Cancelled, Missed};
         let next = match self.data.attendance.get(&key) {
             None => Some(Attended),
             Some(Attended) => Some(Missed),
-            Some(Missed) => None,
+            Some(Missed) if allow_cancelled => Some(Cancelled),
+            Some(Missed) | Some(Cancelled) => None,
         };
         match next {
             Some(state) => {
@@ -267,6 +238,7 @@ impl Study {
         let key = session.key();
         let state = self.data.attendance.get(&key).copied();
         let markable = session.start_at() <= now;
+        let allow_cancelled = session.end_at() <= now;
         let kind_color = session.kind.color();
 
         let (accent, background, course_color) = if !markable {
@@ -286,6 +258,11 @@ impl Study {
                     theme::color::PURPLE,
                     rgb(theme::color::PURPLE).alpha(0.16),
                     theme::color::PURPLE,
+                ),
+                Some(Attendance::Cancelled) => (
+                    theme::color::YELLOW,
+                    rgb(theme::color::YELLOW).alpha(0.16),
+                    theme::color::YELLOW,
                 ),
                 None => (
                     kind_color,
@@ -351,7 +328,7 @@ impl Study {
                         .border_color(rgb(theme::color::ACCENT))
                 })
                 .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
-                    this.cycle_attendance(key.clone(), cx)
+                    this.cycle_attendance(key.clone(), allow_cancelled, cx)
                 }));
         }
         card
@@ -499,6 +476,44 @@ fn stat_block(label: &'static str, stat: Stat) -> impl IntoElement {
         )
 }
 
+fn summarize_at(data: &StudyData, month: NaiveDate, now: NaiveDateTime) -> StudySummary {
+    let mut overall = Stat { attended: 0, total: 0 };
+    let mut lectures = Stat { attended: 0, total: 0 };
+    let mut practice = Stat { attended: 0, total: 0 };
+
+    for session in schedule::sessions_in_month(month) {
+        if session.start_at() > now {
+            continue;
+        }
+        let state = data.attendance.get(&session.key()).copied();
+        if state == Some(Attendance::Cancelled) {
+            continue;
+        }
+        let attended = state == Some(Attendance::Attended);
+        overall.total += 1;
+        if attended {
+            overall.attended += 1;
+        }
+        if session.kind.counts_as_lecture() {
+            lectures.total += 1;
+            if attended {
+                lectures.attended += 1;
+            }
+        } else if session.kind.counts_as_practice() {
+            practice.total += 1;
+            if attended {
+                practice.attended += 1;
+            }
+        }
+    }
+
+    StudySummary {
+        overall,
+        lectures,
+        practice,
+    }
+}
+
 /// The same three-number stats row shown on the study tab.
 pub fn summary_row(summary: StudySummary) -> impl IntoElement {
     div()
@@ -523,6 +538,30 @@ impl Render for Study {
             .gap(px(theme::space::TIGHT))
             .child(self.month_nav(cx))
             .child(summary_row(summary))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(theme::space::GROUP_Y))
+                    .text_size(px(theme::type_scale::MINI))
+                    .text_color(rgb(theme::color::MUTED))
+                    .child("click a class:")
+                    .child(
+                        div()
+                            .text_color(rgb(theme::color::MINT))
+                            .child("attended"),
+                    )
+                    .child(
+                        div()
+                            .text_color(rgb(theme::color::PURPLE))
+                            .child("missed"),
+                    )
+                    .child(
+                        div()
+                            .text_color(rgb(theme::color::YELLOW))
+                            .child("didn't happen"),
+                    ),
+            )
             .child(self.calendar(cx))
             .when_some(self.status.clone(), |el, status| {
                 el.child(
@@ -532,5 +571,29 @@ impl Render for Study {
                         .child(status),
                 )
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cancelled_sessions_are_excluded_from_stats() {
+        let month = NaiveDate::from_ymd_opt(2026, 11, 1).unwrap();
+        let sessions = schedule::sessions_in_month(month);
+        let now = NaiveDate::from_ymd_opt(2027, 1, 20)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap();
+        let mut data = StudyData::default();
+        data.attendance
+            .insert(sessions[0].key(), Attendance::Attended);
+        data.attendance
+            .insert(sessions[1].key(), Attendance::Cancelled);
+
+        let summary = summarize_at(&data, month, now);
+        assert_eq!(summary.overall.total, sessions.len() as u32 - 1);
+        assert_eq!(summary.overall.attended, 1);
     }
 }
