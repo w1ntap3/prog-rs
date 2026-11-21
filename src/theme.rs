@@ -64,6 +64,8 @@ pub mod geometry {
     pub const TIME_CELL: f32 = 30.0;
     /// Chart legend line swatch.
     pub const LEGEND_W: f32 = 14.0;
+    /// Confirmation dialog width.
+    pub const MODAL_W: f32 = 440.0;
     /// Chart hover tooltip.
     pub const HOVER_TOOLTIP_W: f32 = 230.0;
     pub const HOVER_TOOLTIP_H: f32 = 96.0;
@@ -111,6 +113,8 @@ pub mod type_scale {
     pub const HINT: f32 = 12.0;
     /// Big accent line in the slideshow.
     pub const STATEMENT: f32 = 30.0;
+    /// Relapse-free clock.
+    pub const CLOCK: f32 = 52.0;
     /// Text field contents.
     pub const FIELD: f32 = 14.0;
     /// Ledger rows and other dense lists.

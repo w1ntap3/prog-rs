@@ -13,13 +13,16 @@ use gpui::{
     Pixels, Point, ScrollHandle, Window, actions, canvas, div, fill, point, px, rgb, size, svg,
 };
 
-use crate::{assets, config, currency, finances, paths, theme};
+use crate::{appeal, assets, config, currency, finances, modal, paths, theme};
 
 /// Section label that renders the settings panel instead of a placeholder.
 pub const SETTINGS_SECTION: &str = "settings";
 
 /// Section label that renders the finances dashboard.
 pub const FINANCES_SECTION: &str = "finances";
+
+/// Section label that renders the relapse-free clock.
+pub const APPEAL_SECTION: &str = "appeal";
 
 actions!(prog_rs, [Quit]);
 
@@ -80,6 +83,7 @@ pub struct AppRoot {
     selected: usize,
     status: Option<String>,
     finances: Entity<finances::Finances>,
+    appeal: Entity<appeal::Appeal>,
     focus_handle: FocusHandle,
     eur_rate: String,
     azn_rate: String,
@@ -100,6 +104,7 @@ impl AppRoot {
             eur_rate: currency::rate_string(rates.eur),
             azn_rate: currency::rate_string(rates.azn),
             finances: cx.new(move |cx| finances::Finances::new(rates, cx)),
+            appeal: cx.new(appeal::Appeal::new),
             config,
             selected: 0,
             status: None,
@@ -577,6 +582,29 @@ impl AppRoot {
 
     /// Finance headline on the `main` tab: the same slideshow content as the
     /// finances section, for the current payout window as one pot.
+    fn appeal_modal(&self, window: &Window, cx: &Context<Self>) -> Option<gpui::AnyElement> {
+        if !self.appeal.read(cx).confirming() {
+            return None;
+        }
+        Some(modal::confirm_dialog(
+            window,
+            "Record a relapse?",
+            "This restarts the clock from right now. Only confirm if it actually happened.",
+            "yes, reset",
+            theme::color::PURPLE,
+            cx.listener(|this, _, _, cx| {
+                this.appeal
+                    .update(cx, |appeal, cx| appeal.confirm_reset(cx));
+                cx.notify();
+            }),
+            cx.listener(|this, _, _, cx| {
+                this.appeal
+                    .update(cx, |appeal, cx| appeal.cancel_reset(cx));
+                cx.notify();
+            }),
+        ))
+    }
+
     fn home_tab(&self, view: HomeView, cx: &Context<Self>) -> impl IntoElement {
         let selected = self.home_view == view;
         div()
@@ -794,6 +822,7 @@ impl AppRoot {
             .unwrap_or_default();
         let is_settings = label == SETTINGS_SECTION;
         let is_finances = label == FINANCES_SECTION;
+        let is_appeal = label == APPEAL_SECTION;
         let is_main = label == "main";
         div()
             .w_full()
@@ -840,6 +869,14 @@ impl AppRoot {
                         .child(self.finances.clone()),
                 )
             })
+            .when(is_appeal, |el| {
+                el.child(
+                    div()
+                        .mt(px(theme::space::TIGHT))
+                        .w_full()
+                        .child(self.appeal.clone()),
+                )
+            })
             .when(is_main, |el| {
                 el.child(
                     div()
@@ -848,7 +885,7 @@ impl AppRoot {
                         .child(self.home(cx)),
                 )
             })
-            .when(!is_settings && !is_finances && !is_main, |el| {
+            .when(!is_settings && !is_finances && !is_appeal && !is_main, |el| {
                 el.child(
                     div()
                         .mt(px(4.))
@@ -1017,7 +1054,15 @@ impl Render for AppRoot {
             .font_family(theme::FONT)
             .flex()
             .track_focus(&self.focus_handle)
-            .on_action(|_: &Quit, window, _cx| window.remove_window())
+            .on_action(cx.listener(|this, _: &Quit, window, cx| {
+                if this.appeal.read(cx).confirming() {
+                    this.appeal
+                        .update(cx, |appeal, cx| appeal.cancel_reset(cx));
+                    cx.notify();
+                } else {
+                    window.remove_window();
+                }
+            }))
             .child(
                 div()
                     .w(px(theme::geometry::SIDEBAR_WIDTH))
@@ -1048,5 +1093,6 @@ impl Render for AppRoot {
                     ),
             )
             .child(self.content(window, cx))
+            .children(self.appeal_modal(window, cx))
     }
 }

@@ -10,8 +10,8 @@ because the user builds it himself; structure still being figured out.
 `main` shows the big picture: current trajectory vs. the baseline "him who
 didn't focus on any of this" (e.g. "you wouldn't have saved X CZK, you'd
 weigh 10kg more, ..."). Sections (finances, appeal, ...) map to life areas.
-The shell, config/data stores and the finances section are implemented; other
-sections are still placeholders.
+The shell, config/data stores, finances and the appeal relapse clock are
+implemented; other sections are still placeholders.
 
 ## Commands
 
@@ -99,6 +99,10 @@ src/
               validated, export/import
   currency.rs Currency/Rates types plus shared decimal parsing/formatting
   data.rs     personal DATA store: private dir, directory-tree export/import
+  modal.rs    app-wide confirmation dialog: full-window dim + centered panel
+  appeal/
+    mod.rs    appeal view: second-ticking relapse-free clock and reset flow
+    model.rs  v1 appeal.toml: last_relapse timestamp; calendar month/day clock
   finances/
     mod.rs    finance view: category/window toolbar, slideshow, chart,
               window + correction panels, entry form, ledger
@@ -124,10 +128,12 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   edit, not a code change. A section named `settings`
   (`app::SETTINGS_SECTION`) renders one settings block per configured section
   (finances supplies currency conversion rates; others show an empty note).
-  `finances` (`app::FINANCES_SECTION`) is the only real content view so far.
+  `finances` (`app::FINANCES_SECTION`) and `appeal` are the real content views
+  so far.
 - Config vs data stays strict: currency rates live in `config.toml`, while
-  payout windows, transactions and balance corrections live in the private
-  `finances.toml` (data dir). Both have validated formats and export/import.
+  payout windows, transactions, balance corrections and the appeal
+  `last_relapse` live in private files under the data dir. All have validated
+  formats and are covered by directory export/import.
 - Finances: a window is a payout period with per-category balances
   (nutrition/allowance) or a single `combined` balance. Transactions are
   expense/income, optionally entered in CZK/EUR/AZN and converted to CZK at
@@ -140,6 +146,10 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   average plan, last-7-days daily average, and percent of that view's money
   left. `main` shows the same slideshow with combined (default), nutrition and
   allowance options for the current window.
+- Appeal stores only `last_relapse` in `appeal.toml` and derives a
+  `MM:DD:HH:MM:SS` clock (calendar months, then days/hours/minutes/seconds) in
+  the UI. Resetting is confirmed through `modal.rs`, which dims the whole app;
+  Escape cancels the modal instead of quitting.
 - Every tab's content lives in one shared vertical scroller with a custom
   right-edge scrollbar that only paints when content overflows; it widens on
   hover and is draggable. The sidebar list scrolls independently.

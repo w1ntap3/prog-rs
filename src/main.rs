@@ -1,9 +1,11 @@
+mod appeal;
 mod app;
 mod assets;
 mod config;
 mod currency;
 mod data;
 mod finances;
+mod modal;
 mod paths;
 mod startup;
 mod theme;
