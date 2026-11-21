@@ -8,11 +8,14 @@ use std::time::Duration;
 
 use chrono::{Datelike, Local, NaiveDate, NaiveDateTime};
 use gpui::prelude::*;
-use gpui::{AnyElement, ClickEvent, Context, FontWeight, Render, Window, div, px, rgb};
+use gpui::{
+    Animation, AnimationExt, AnyElement, ClickEvent, Context, FontWeight, KeyDownEvent, Render,
+    Window, div, px, rgb,
+};
 
 use crate::theme;
 
-use self::model::{Attendance, StudyData};
+use self::model::{Assessment, Assignment, Attendance, StudyData};
 use self::schedule::Session;
 
 #[derive(Debug, Clone, Copy)]
@@ -39,10 +42,33 @@ pub struct StudySummary {
     pub practice: Stat,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Panel {
+    Assignments,
+    Assessments,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Field {
+    AssignmentDeadline,
+    AssessmentWhen,
+}
+
+struct FocusHandles {
+    assignment: gpui::FocusHandle,
+    assessment: gpui::FocusHandle,
+}
+
 pub struct Study {
     data: StudyData,
     week: NaiveDate,
     status: Option<String>,
+    assignment_subject: String,
+    assessment_subject: String,
+    assignment_deadline: String,
+    assessment_when: String,
+    open_subject: Option<Panel>,
+    focus: FocusHandles,
 }
 
 impl Study {
@@ -64,10 +90,22 @@ impl Study {
         } else {
             current
         };
+        let subjects = schedule::subjects();
+        let default_subject = subjects.first().copied().unwrap_or("PRS").to_owned();
+        let now = Local::now().naive_local().format("%Y-%m-%d %H:%M").to_string();
         let this = Self {
             data,
             week,
             status,
+            assignment_subject: default_subject.clone(),
+            assessment_subject: default_subject,
+            assignment_deadline: now.clone(),
+            assessment_when: now,
+            open_subject: None,
+            focus: FocusHandles {
+                assignment: cx.focus_handle(),
+                assessment: cx.focus_handle(),
+            },
         };
         this.start_tick(cx);
         this
@@ -105,6 +143,162 @@ impl Study {
 
     pub fn summary_for(&self, month: NaiveDate) -> StudySummary {
         summarize_at(&self.data, month, Local::now().naive_local())
+    }
+
+    fn field_value(&self, field: Field) -> &str {
+        match field {
+            Field::AssignmentDeadline => &self.assignment_deadline,
+            Field::AssessmentWhen => &self.assessment_when,
+        }
+    }
+
+    fn field_value_mut(&mut self, field: Field) -> &mut String {
+        match field {
+            Field::AssignmentDeadline => &mut self.assignment_deadline,
+            Field::AssessmentWhen => &mut self.assessment_when,
+        }
+    }
+
+    fn focus_handle(&self, field: Field) -> &gpui::FocusHandle {
+        match field {
+            Field::AssignmentDeadline => &self.focus.assignment,
+            Field::AssessmentWhen => &self.focus.assessment,
+        }
+    }
+
+    fn focus_field(&mut self, field: Field, window: &mut Window, cx: &mut Context<Self>) {
+        self.focus_handle(field).focus(window, cx);
+        cx.notify();
+    }
+
+    fn key(
+        &mut self,
+        field: Field,
+        event: &KeyDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let modifiers = event.keystroke.modifiers;
+        let key = event.keystroke.key.as_str();
+        if key == "tab" {
+            let next = match field {
+                Field::AssignmentDeadline => Field::AssessmentWhen,
+                Field::AssessmentWhen => Field::AssignmentDeadline,
+            };
+            self.focus_field(next, window, cx);
+            return;
+        }
+        if key == "enter" {
+            match field {
+                Field::AssignmentDeadline => self.add_assignment(cx),
+                Field::AssessmentWhen => self.add_assessment(cx),
+            }
+            return;
+        }
+        if key == "backspace" {
+            let value = self.field_value_mut(field);
+            if modifiers.control || modifiers.platform {
+                value.clear();
+            } else {
+                value.pop();
+            }
+            cx.notify();
+            return;
+        }
+        if modifiers.control || modifiers.alt || modifiers.platform {
+            return;
+        }
+        let Some(chars) = event.keystroke.key_char.as_deref() else {
+            return;
+        };
+        if chars
+            .chars()
+            .all(|c| c.is_ascii_digit() || c == '-' || c == ':' || c == ' ')
+        {
+            self.field_value_mut(field).push_str(chars);
+            cx.notify();
+        }
+    }
+
+    fn toggle_subject(&mut self, panel: Panel, cx: &mut Context<Self>) {
+        self.open_subject = if self.open_subject == Some(panel) {
+            None
+        } else {
+            Some(panel)
+        };
+        cx.notify();
+    }
+
+    fn subject(&self, panel: Panel) -> &str {
+        match panel {
+            Panel::Assignments => &self.assignment_subject,
+            Panel::Assessments => &self.assessment_subject,
+        }
+    }
+
+    fn set_subject(&mut self, panel: Panel, subject: &str, cx: &mut Context<Self>) {
+        match panel {
+            Panel::Assignments => self.assignment_subject = subject.to_owned(),
+            Panel::Assessments => self.assessment_subject = subject.to_owned(),
+        }
+        self.open_subject = None;
+        cx.notify();
+    }
+
+    fn add_assignment(&mut self, cx: &mut Context<Self>) {
+        let Some(deadline) = Self::parse_datetime(&self.assignment_deadline) else {
+            self.status = Some("deadline must be YYYY-MM-DD HH:MM".into());
+            cx.notify();
+            return;
+        };
+        self.data.assignments.push(Assignment {
+            subject: self.assignment_subject.clone(),
+            deadline,
+        });
+        self.assignment_deadline = Local::now().naive_local().format("%Y-%m-%d %H:%M").to_string();
+        self.open_subject = None;
+        self.persist(cx);
+    }
+
+    fn add_assessment(&mut self, cx: &mut Context<Self>) {
+        let Some(when) = Self::parse_datetime(&self.assessment_when) else {
+            self.status = Some("time must be YYYY-MM-DD HH:MM".into());
+            cx.notify();
+            return;
+        };
+        self.data.assessments.push(Assessment {
+            subject: self.assessment_subject.clone(),
+            when,
+        });
+        self.assessment_when = Local::now().naive_local().format("%Y-%m-%d %H:%M").to_string();
+        self.open_subject = None;
+        self.persist(cx);
+    }
+
+    fn parse_datetime(raw: &str) -> Option<NaiveDateTime> {
+        NaiveDateTime::parse_from_str(raw.trim(), "%Y-%m-%d %H:%M").ok()
+    }
+
+    fn persist(&mut self, cx: &mut Context<Self>) {
+        self.status = match self.data.save() {
+            Ok(()) => None,
+            Err(error) => Some(format!("save failed: {error:#}")),
+        };
+        cx.notify();
+    }
+
+    fn delete_assignment(&mut self, index: usize, cx: &mut Context<Self>) {
+        if index < self.data.assignments.len() {
+            self.data.assignments.remove(index);
+            self.persist(cx);
+        }
+    }
+
+    fn delete_assessment(&mut self, index: usize, cx: &mut Context<Self>) {
+        if index < self.data.assessments.len() {
+            self.data.assessments.remove(index);
+            self.persist(cx);
+        }
     }
 
     /// Cycle a session: unmarked -> attended -> missed -> cancelled -> unmarked.
@@ -160,7 +354,13 @@ impl Study {
          -> AnyElement {
             let mut element = div()
                 .id(id)
-                .px(px(theme::space::DOT_GAP))
+                .w(px(theme::geometry::NAV_BUTTON))
+                .h(px(theme::geometry::NAV_BUTTON))
+                .flex()
+                .items_center()
+                .justify_center()
+                .border_1()
+                .border_color(rgb(theme::color::SURFACE))
                 .text_size(px(theme::type_scale::NAV))
                 .text_color(rgb(if enabled {
                     theme::color::FOREGROUND
@@ -170,7 +370,11 @@ impl Study {
             if let Some(handler) = on_click {
                 element = element
                     .cursor_pointer()
-                    .hover(|style| style.text_color(rgb(theme::color::ACCENT)))
+                    .hover(|style| {
+                        style
+                            .bg(rgb(theme::color::SURFACE))
+                            .text_color(rgb(theme::color::ACCENT))
+                    })
                     .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| handler(this, cx)));
             }
             element.child(label).into_any_element()
@@ -215,12 +419,15 @@ impl Study {
             .flex()
             .items_center()
             .justify_between()
+            .gap(px(theme::space::TIGHT))
+            .child(prev)
             .child(
                 div()
+                    .flex_1()
                     .flex()
+                    .flex_col()
                     .items_center()
-                    .gap(px(theme::space::TIGHT))
-                    .child(prev)
+                    .gap(px(theme::space::DOT_GAP))
                     .child(
                         div()
                             .text_size(px(theme::type_scale::NAV))
@@ -228,14 +435,269 @@ impl Study {
                             .text_color(rgb(theme::color::FOREGROUND))
                             .child(label.to_uppercase()),
                     )
-                    .child(next),
+                    .child(
+                        div()
+                            .text_size(px(theme::type_scale::MINI))
+                            .text_color(rgb(theme::color::MUTED))
+                            .child("winter semester · ends 10 Jan 2027"),
+                    ),
             )
+            .child(next)
+    }
+
+    fn text_field(
+        &self,
+        field: Field,
+        width: f32,
+        window: &Window,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        let focus = self.focus_handle(field);
+        let focused = focus.is_focused(window);
+        let focus = focus.clone();
+        let value = self.field_value(field).to_owned();
+        div()
+            .id(format!("study-field-{field:?}"))
+            .w(px(width))
+            .px(px(theme::space::FIELD_X))
+            .py(px(theme::space::FIELD_Y))
+            .border_b_1()
+            .border_color(rgb(if focused {
+                theme::color::ACCENT
+            } else {
+                theme::color::SURFACE
+            }))
+            .flex()
+            .items_center()
+            .text_size(px(theme::type_scale::FIELD))
+            .text_color(rgb(theme::color::FOREGROUND))
+            .cursor_text()
+            .track_focus(&focus)
+            .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
+                this.focus_field(field, window, cx)
+            }))
+            .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
+                this.key(field, event, window, cx)
+            }))
+            .child(div().child(value))
+            .when(focused, |el| {
+                el.child(
+                    div()
+                        .ml(px(theme::space::DOT_GAP))
+                        .text_color(rgb(theme::color::ACCENT))
+                        .child("▌")
+                        .with_animation(
+                            format!("study-caret-{field:?}"),
+                            Animation::new(Duration::from_millis(900)).repeat(),
+                            |el, t| el.opacity(if t < 0.5 { 1.0 } else { 0.0 }),
+                        ),
+                )
+            })
+    }
+
+    fn list_panel(
+        &self,
+        panel: Panel,
+        window: &Window,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        let (title, hint, field, entries): (
+            &'static str,
+            &'static str,
+            Field,
+            Vec<(usize, String, NaiveDateTime)>,
+        ) = match panel {
+            Panel::Assignments => (
+                "ASSIGNMENTS",
+                "deadline · YYYY-MM-DD HH:MM",
+                Field::AssignmentDeadline,
+                self.data
+                    .assignments
+                    .iter()
+                    .enumerate()
+                    .map(|(index, assignment)| {
+                        (
+                            index,
+                            assignment.subject.clone(),
+                            assignment.deadline,
+                        )
+                    })
+                    .collect(),
+            ),
+            Panel::Assessments => (
+                "ASSESSMENTS",
+                "when it is · YYYY-MM-DD HH:MM",
+                Field::AssessmentWhen,
+                self.data
+                    .assessments
+                    .iter()
+                    .enumerate()
+                    .map(|(index, assessment)| {
+                        (index, assessment.subject.clone(), assessment.when)
+                    })
+                    .collect(),
+            ),
+        };
+        let mut entries = entries;
+        entries.sort_by_key(|(_, _, at)| *at);
+        let empty = entries.is_empty();
+        let subject = self.subject(panel).to_owned();
+        let open = self.open_subject == Some(panel);
+
+        div()
+            .flex_1()
+            .flex()
+            .flex_col()
+            .gap(px(theme::space::TIGHT))
+            .p(px(theme::space::TIGHT))
+            .border_1()
+            .border_color(rgb(theme::color::SURFACE))
+            .child(
+                div()
+                    .text_size(px(theme::type_scale::KICKER))
+                    .text_color(rgb(theme::color::SEA_GREEN))
+                    .child(title),
+            )
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(theme::space::TIGHT))
+                    .child(
+                        div()
+                            .id(format!("study-subject-{panel:?}"))
+                            .w(px(theme::geometry::SUBJECT_W))
+                            .px(px(theme::space::FIELD_X))
+                            .py(px(theme::space::FIELD_Y))
+                            .border_b_1()
+                            .border_color(rgb(if open {
+                                theme::color::ACCENT
+                            } else {
+                                theme::color::SURFACE
+                            }))
+                            .text_size(px(theme::type_scale::FIELD))
+                            .text_color(rgb(theme::color::FOREGROUND))
+                            .cursor_pointer()
+                            .hover(|style| style.text_color(rgb(theme::color::ACCENT)))
+                            .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                                this.toggle_subject(panel, cx)
+                            }))
+                            .child(format!("{subject} ▾")),
+                    )
+                    .child(self.text_field(field, theme::geometry::FIELD_AMOUNT_W, window, cx))
+                    .child(
+                        div()
+                            .id(format!("study-add-{panel:?}"))
+                            .px(px(theme::space::ITEM_X))
+                            .py(px(theme::space::ITEM_Y - 2.))
+                            .bg(rgb(theme::color::SURFACE))
+                            .text_size(px(theme::type_scale::NAV))
+                            .text_color(rgb(theme::color::ACCENT))
+                            .cursor_pointer()
+                            .hover(|style| style.text_color(rgb(theme::color::FOREGROUND)))
+                            .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                                match panel {
+                                    Panel::Assignments => this.add_assignment(cx),
+                                    Panel::Assessments => this.add_assessment(cx),
+                                }
+                            }))
+                            .child("add"),
+                    ),
+            )
+            .when(open, |el| {
+                el.child(
+                    div()
+                        .w_full()
+                        .flex()
+                        .flex_col()
+                        .border_1()
+                        .border_color(rgb(theme::color::SURFACE))
+                        .children(schedule::subjects().into_iter().map(|candidate| {
+                            let selected = candidate == subject;
+                            div()
+                                .id(format!("study-subject-{panel:?}-{candidate}"))
+                                .px(px(theme::space::TIGHT))
+                                .py(px(theme::space::FIELD_Y))
+                                .text_size(px(theme::type_scale::NAV))
+                                .text_color(rgb(if selected {
+                                    theme::color::ACCENT
+                                } else {
+                                    theme::color::MUTED
+                                }))
+                                .when(selected, |el| el.bg(rgb(theme::color::SURFACE)))
+                                .cursor_pointer()
+                                .hover(|style| style.text_color(rgb(theme::color::FOREGROUND)))
+                                .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                                    this.set_subject(panel, candidate, cx)
+                                }))
+                                .child(candidate)
+                        })),
+                )
+            })
             .child(
                 div()
                     .text_size(px(theme::type_scale::MINI))
                     .text_color(rgb(theme::color::MUTED))
-                    .child("winter semester · ends 10 Jan 2027"),
+                    .child(hint),
             )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .children(entries.into_iter().map(|(index, subject, at)| {
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(theme::space::TIGHT))
+                            .py(px(theme::space::LEDGER_ROW_Y))
+                            .border_b_1()
+                            .border_color(rgb(theme::color::SURFACE))
+                            .child(
+                                div()
+                                    .text_size(px(theme::type_scale::LEDGER))
+                                    .font_weight(FontWeight(theme::weight::NAV_ACTIVE))
+                                    .text_color(rgb(theme::color::ACCENT))
+                                    .child(subject),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .text_size(px(theme::type_scale::MINI))
+                                    .text_color(rgb(theme::color::MUTED))
+                                    .child(at.format("%d-%b-%Y %H:%M").to_string()),
+                            )
+                            .child(
+                                div()
+                                    .id(format!("study-del-{panel:?}-{index}"))
+                                    .px(px(theme::space::DOT_GAP))
+                                    .text_size(px(theme::type_scale::LEDGER))
+                                    .text_color(rgb(theme::color::MUTED))
+                                    .cursor_pointer()
+                                    .hover(|style| {
+                                        style.text_color(rgb(theme::color::PURPLE))
+                                    })
+                                    .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                                        match panel {
+                                            Panel::Assignments => {
+                                                this.delete_assignment(index, cx)
+                                            }
+                                            Panel::Assessments => {
+                                                this.delete_assessment(index, cx)
+                                            }
+                                        }
+                                    }))
+                                    .child("×"),
+                            )
+                    })),
+            )
+            .when(empty, |el| {
+                el.child(
+                    div()
+                        .text_size(px(theme::type_scale::HINT))
+                        .text_color(rgb(theme::color::MUTED))
+                        .child("nothing yet"),
+                )
+            })
     }
 
     fn session_row(
@@ -507,7 +969,7 @@ pub fn summary_row(summary: StudySummary) -> impl IntoElement {
 }
 
 impl Render for Study {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let middle = self.week + chrono::Duration::days(3);
         let stats_month = NaiveDate::from_ymd_opt(middle.year(), middle.month(), 1)
             .expect("first of month is valid");
@@ -554,6 +1016,14 @@ impl Render for Study {
                     ),
             )
             .child(self.calendar(cx))
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .gap(px(theme::space::GROUP_Y))
+                    .child(self.list_panel(Panel::Assignments, window, cx))
+                    .child(self.list_panel(Panel::Assessments, window, cx)),
+            )
             .when_some(self.status.clone(), |el, status| {
                 el.child(
                     div()

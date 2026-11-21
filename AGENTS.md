@@ -106,7 +106,8 @@ src/
   study/
     mod.rs    study view: active-week Mon-Fri calendar, attendance cycling, stats
     schedule.rs fixed 2026 winter timetable; generates sessions Nov 1-Jan 10
-    model.rs  v1 study.toml: attendance map keyed by session
+    model.rs  v1 study.toml: attendance map, assignment deadlines and
+              assessment times
   finances/
     mod.rs    finance view: category/window toolbar, slideshow, chart,
               window + correction panels, entry form, ledger
@@ -152,8 +153,9 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   left. `main` shows the same slideshow with combined (default), nutrition and
   allowance options for the current window.
 - Study is a fixed winter-semester timetable in `study/schedule.rs` (1 Nov
-  2026 - 10 Jan 2027; summer is intentionally absent). Attendance is the only
-  user data, stored in `study.toml` with `attended`/`missed` values. The
+  2026 - 10 Jan 2027; summer is intentionally absent). Attendance, assignment
+  deadlines and assessment times are user data in `study.toml`; attendance
+  uses `attended`/`missed`/`cancelled` values. The
   calendar is a Monday-Friday active-week view with prev/next week navigation,
   shows short course ids as full-width event
   cards (time + type badge + short id, type-colored accent, today tinted), and
@@ -165,8 +167,11 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   unmarked treated as not attended, for all classes, lectures, and
   labs+seminars; future sessions are not markable.
   The occasional "odd weeks" lab uses ISO week parity until a real academic
-  week anchor is available. `main` shows the same three-number stats row for
-  the current month.
+  week anchor is available. Below the week calendar, assignments and
+  assessments are two side-by-side panels: pick a short course id from the
+  inline dropdown, enter a `YYYY-MM-DD HH:MM` deadline/when, and the list is
+  persisted. `main` shows the same three-number stats row for the current
+  month.
 - Appeal stores only `last_relapse` in `appeal.toml` and derives a
   `MM:DD:HH:MM:SS` clock (calendar months, then days/hours/minutes/seconds) in
   the UI. The appeal tab is a centered square panel with a `RELAPSE-FREE`

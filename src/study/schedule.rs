@@ -95,6 +95,17 @@ fn templates() -> Vec<Template> {
     ]
 }
 
+/// Unique short course ids in timetable order.
+pub fn subjects() -> Vec<&'static str> {
+    let mut subjects = Vec::new();
+    for template in templates() {
+        if !subjects.contains(&template.short) {
+            subjects.push(template.short);
+        }
+    }
+    subjects
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Session {
     pub date: NaiveDate,

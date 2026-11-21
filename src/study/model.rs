@@ -8,6 +8,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
 use crate::data;
@@ -26,10 +27,30 @@ pub enum Attendance {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct Assignment {
+    /// Short course id, e.g. `PRS`.
+    pub subject: String,
+    pub deadline: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Assessment {
+    pub subject: String,
+    /// When the assessment takes place.
+    pub when: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct StudyData {
     pub version: u32,
     #[serde(default)]
     pub attendance: BTreeMap<String, Attendance>,
+    #[serde(default)]
+    pub assignments: Vec<Assignment>,
+    #[serde(default)]
+    pub assessments: Vec<Assessment>,
 }
 
 impl Default for StudyData {
@@ -37,6 +58,8 @@ impl Default for StudyData {
         Self {
             version: VERSION,
             attendance: BTreeMap::new(),
+            assignments: Vec::new(),
+            assessments: Vec::new(),
         }
     }
 }
@@ -89,6 +112,7 @@ impl StudyData {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::NaiveDate;
 
     #[test]
     fn roundtrip_attendance() {
@@ -100,6 +124,20 @@ mod tests {
         let mut data = StudyData::default();
         data.attendance
             .insert("BE5B01PRS|2026-11-02|09:15|lecture".into(), Attendance::Attended);
+        data.assignments.push(Assignment {
+            subject: "PRS".into(),
+            deadline: NaiveDate::from_ymd_opt(2026, 11, 25)
+                .unwrap()
+                .and_hms_opt(23, 59, 0)
+                .unwrap(),
+        });
+        data.assessments.push(Assessment {
+            subject: "ALG".into(),
+            when: NaiveDate::from_ymd_opt(2026, 12, 18)
+                .unwrap()
+                .and_hms_opt(10, 0, 0)
+                .unwrap(),
+        });
         data.save_to(&path).unwrap();
         assert_eq!(StudyData::load_from(&path).unwrap(), data);
         fs::remove_dir_all(&dir).unwrap();

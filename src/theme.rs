@@ -66,8 +66,10 @@ pub mod geometry {
     pub const LEGEND_W: f32 = 14.0;
     /// Confirmation dialog width.
     pub const MODAL_W: f32 = 440.0;
-    /// Study week-calendar day cell.
+    /// Study week-calendar day cell, subject picker and nav buttons.
     pub const CALENDAR_DAY_H: f32 = 96.0;
+    pub const SUBJECT_W: f32 = 84.0;
+    pub const NAV_BUTTON: f32 = 30.0;
     /// Appeal clock square.
     pub const CLOCK_BOX: f32 = 360.0;
     /// Chart hover tooltip.
