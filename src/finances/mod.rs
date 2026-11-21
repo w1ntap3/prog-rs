@@ -1627,6 +1627,7 @@ impl Finances {
                     .child(
                         div()
                             .flex()
+                            .flex_wrap()
                             .items_end()
                             .gap(px(theme::space::GROUP_Y))
                             .child(Self::metric(
@@ -1812,11 +1813,14 @@ impl Finances {
                 div()
                     .w_full()
                     .flex()
+                    .flex_wrap()
                     .items_center()
                     .justify_between()
+                    .gap(px(theme::space::TIGHT))
                     .child(
                         div()
                             .flex()
+                            .flex_wrap()
                             .items_center()
                             .gap(px(theme::space::TIGHT))
                             .child(Self::hint("viewing"))
@@ -1875,11 +1879,14 @@ impl Finances {
                 div()
                     .w_full()
                     .flex()
+                    .flex_wrap()
                     .items_center()
                     .justify_between()
+                    .gap(px(theme::space::TIGHT))
                     .child(
                         div()
                             .flex()
+                            .flex_wrap()
                             .items_center()
                             .gap(px(theme::space::TIGHT))
                             .child(Self::kicker("money over the window"))
@@ -1888,6 +1895,7 @@ impl Finances {
                     .child(
                         div()
                             .flex()
+                            .flex_wrap()
                             .items_center()
                             .gap(px(theme::space::GROUP_Y))
                             .child(Self::legend_item(theme::color::ACCENT, "actual"))
@@ -2340,26 +2348,32 @@ impl Finances {
             )
             .child(
                 div()
+                    .w_full()
                     .flex()
+                    .flex_wrap()
                     .items_end()
                     .gap(px(theme::space::TIGHT))
-                    .child(self.date_button(
-                        "at",
-                        self.adjust_date,
-                        DateTarget::Adjustment,
-                        cx,
-                    ))
+                    .child(
+                        div().flex_1().min_w_0().child(self.date_button(
+                            "at",
+                            self.adjust_date,
+                            DateTarget::Adjustment,
+                            cx,
+                        )),
+                    )
                     .child(self.time_button(TimeTarget::Adjustment, cx))
                     .child(Self::now_button(TimeTarget::Adjustment, cx))
-                    .child(Self::labeled(
-                        "actual balance",
-                        self.field(
-                            Field::AdjustBalance,
-                            self.adjust_currency.label(),
-                            window,
-                            cx,
-                        ),
-                    ))
+                    .child(
+                        div().flex_1().min_w_0().child(Self::labeled(
+                            "actual balance",
+                            self.field(
+                                Field::AdjustBalance,
+                                self.adjust_currency.label(),
+                                window,
+                                cx,
+                            ),
+                        )),
+                    )
                     .child(
                         div()
                             .id("fin-adjust")
@@ -2584,9 +2598,21 @@ impl Render for Finances {
             today,
         );
 
+        // Flex items in this gpui version keep their content's minimum width, so
+        // fractional columns feed back into the page width and squeeze the
+        // sidebar. Pinning the page and its three bottom columns to the known
+        // viewport geometry keeps the whole tab inside one screen.
+        let available = (window.viewport_size().width.as_f32()
+            - theme::geometry::SIDEBAR_WIDTH
+            - theme::space::CONTENT_X * 2.0)
+            .max(600.0);
+        let inner = available - theme::space::CARD_GAP * 2.0;
+        let left_w = inner / 3.9;
+        let mid_w = inner * 1.1 / 3.9;
+        let right_w = inner * 1.8 / 3.9;
         div()
             .id("finances-root")
-            .w_full()
+            .w(px(available))
             .flex()
             .flex_col()
             .gap(px(theme::space::CARD_GAP))
@@ -2600,22 +2626,19 @@ impl Render for Finances {
                     .gap(px(theme::space::CARD_GAP))
                     .child(
                         div()
-                            .flex_grow(1.0)
-                            .flex_basis(px(0.))
+                            .w(px(left_w))
                             .min_w_0()
                             .child(self.window_panel(cx, window)),
                     )
                     .child(
                         div()
-                            .flex_grow(1.1)
-                            .flex_basis(px(0.))
+                            .w(px(mid_w))
                             .min_w_0()
                             .child(self.entry(cx, window)),
                     )
                     .child(
                         div()
-                            .flex_grow(1.8)
-                            .flex_basis(px(0.))
+                            .w(px(right_w))
                             .min_w_0()
                             .child(self.logs_card(&summary, window, cx)),
                     ),

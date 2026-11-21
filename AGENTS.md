@@ -164,7 +164,11 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   category pills when split, stacked amount/note, date/time row, full-width
   add), and one merged transactions+corrections card split `1.2fr 1fr` by an
   internal divider. Ledger/correction lists scroll inside their own capped
-  area (`LEDGER_MAX_HEIGHT`) rather than scrolling the page.
+  area (`LEDGER_MAX_HEIGHT`) rather than scrolling the page. Because gpui flex
+  items keep their content's minimum width, the page and the three bottom
+  columns are pinned to pixel widths derived from the viewport minus the
+  sidebar and content padding (fractional widths otherwise widen the page and
+  squeeze the sidebar).
 - Study is a fixed winter-semester timetable in `study/schedule.rs` (1 Nov
   2026 - 10 Jan 2027; summer is intentionally absent). Attendance, assignment
   deadlines and assessment times are user data in `study.toml`; attendance
