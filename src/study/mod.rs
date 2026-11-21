@@ -551,16 +551,9 @@ impl Study {
         let focus = focus.clone();
         let value = self.field_value(field).to_owned();
         let empty = value.is_empty();
-        let shown = if empty {
-            placeholder.to_owned()
-        } else {
-            value
-        };
         div()
             .id(format!("study-field-{field:?}"))
             .w_full()
-            .px(px(theme::space::FIELD_X))
-            .py(px(theme::space::FIELD_Y))
             .border_1()
             .border_color(rgb(if focused {
                 theme::color::ACCENT
@@ -568,14 +561,6 @@ impl Study {
                 theme::color::SURFACE
             }))
             .bg(rgb(theme::color::SURFACE).alpha(0.12))
-            .flex()
-            .items_center()
-            .text_size(px(theme::type_scale::FIELD))
-            .text_color(rgb(if empty {
-                theme::color::MUTED
-            } else {
-                theme::color::FOREGROUND
-            }))
             .cursor_text()
             .track_focus(&focus)
             .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
@@ -584,20 +569,43 @@ impl Study {
             .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
                 this.key(field, event, window, cx)
             }))
-            .child(div().child(shown))
-            .when(focused, |el| {
-                el.child(
-                    div()
-                        .ml(px(theme::space::DOT_GAP))
-                        .text_color(rgb(theme::color::ACCENT))
-                        .child("▌")
-                        .with_animation(
-                            format!("study-caret-{field:?}"),
-                            Animation::new(Duration::from_millis(900)).repeat(),
-                            |el, t| el.opacity(if t < 0.5 { 1.0 } else { 0.0 }),
-                        ),
-                )
-            })
+            .child(
+                div()
+                    .relative()
+                    .w_full()
+                    .px(px(theme::space::FIELD_X))
+                    .py(px(theme::space::FIELD_Y))
+                    .flex()
+                    .items_center()
+                    .text_size(px(theme::type_scale::FIELD))
+                    .text_color(rgb(theme::color::FOREGROUND))
+                    .when(empty, |el| {
+                        el.child(
+                            div()
+                                .absolute()
+                                .inset_0()
+                                .px(px(theme::space::FIELD_X))
+                                .py(px(theme::space::FIELD_Y))
+                                .text_size(px(theme::type_scale::FIELD))
+                                .text_color(rgb(theme::color::MUTED))
+                                .child(placeholder.to_owned()),
+                        )
+                    })
+                    .child(div().child(value))
+                    .when(focused, |el| {
+                        el.child(
+                            div()
+                                .ml(px(theme::space::DOT_GAP))
+                                .text_color(rgb(theme::color::ACCENT))
+                                .child("▌")
+                                .with_animation(
+                                    format!("study-caret-{field:?}"),
+                                    Animation::new(Duration::from_millis(900)).repeat(),
+                                    |el, t| el.opacity(if t < 0.5 { 1.0 } else { 0.0 }),
+                                ),
+                        )
+                    }),
+            )
     }
 
     fn datetime_button(&self, target: Target, cx: &Context<Self>) -> impl IntoElement {

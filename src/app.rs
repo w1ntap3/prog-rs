@@ -429,27 +429,17 @@ impl AppRoot {
         };
         let focused = focus_handle.is_focused(window);
         let focus = focus_handle.clone();
+        let value = value.clone();
         let empty = value.is_empty();
-        let shown = if empty { placeholder.to_owned() } else { value.clone() };
 
         div()
             .id(format!("rate-{field:?}"))
             .w(px(theme::geometry::FIELD_TIME_W))
-            .px(px(theme::space::FIELD_X))
-            .py(px(theme::space::FIELD_Y))
             .border_b_1()
             .border_color(rgb(if focused {
                 theme::color::ACCENT
             } else {
                 theme::color::SURFACE
-            }))
-            .flex()
-            .items_center()
-            .text_size(px(theme::type_scale::FIELD))
-            .text_color(rgb(if empty {
-                theme::color::MUTED
-            } else {
-                theme::color::FOREGROUND
             }))
             .cursor_text()
             .track_focus(&focus)
@@ -459,23 +449,45 @@ impl AppRoot {
             .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
                 this.settings_key(field, event, window, cx)
             }))
-            .child(div().child(shown))
-            .when(focused, |el| {
-                el.child(
-                    div()
-                        .ml(px(theme::space::DOT_GAP))
-                        .text_color(rgb(theme::color::ACCENT))
-                        .child("▌")
-                        .with_animation(
-                            format!("settings-caret-{field:?}"),
-                            Animation::new(Duration::from_millis(900)).repeat(),
-                            |el, t| el.opacity(if t < 0.5 { 1.0 } else { 0.0 }),
-                        ),
-                )
-            })
+            .child(
+                div()
+                    .relative()
+                    .w_full()
+                    .px(px(theme::space::FIELD_X))
+                    .py(px(theme::space::FIELD_Y))
+                    .flex()
+                    .items_center()
+                    .text_size(px(theme::type_scale::FIELD))
+                    .text_color(rgb(theme::color::FOREGROUND))
+                    .when(empty, |el| {
+                        el.child(
+                            div()
+                                .absolute()
+                                .inset_0()
+                                .px(px(theme::space::FIELD_X))
+                                .py(px(theme::space::FIELD_Y))
+                                .text_size(px(theme::type_scale::FIELD))
+                                .text_color(rgb(theme::color::MUTED))
+                                .child(placeholder.to_owned()),
+                        )
+                    })
+                    .child(div().child(value))
+                    .when(focused, |el| {
+                        el.child(
+                            div()
+                                .ml(px(theme::space::DOT_GAP))
+                                .text_color(rgb(theme::color::ACCENT))
+                                .child("▌")
+                                .with_animation(
+                                    format!("settings-caret-{field:?}"),
+                                    Animation::new(Duration::from_millis(900)).repeat(),
+                                    |el, t| el.opacity(if t < 0.5 { 1.0 } else { 0.0 }),
+                                ),
+                        )
+                    }),
+            )
     }
 
-    /// Settings owned by the finances section.
     fn currency_settings(&self, window: &Window, cx: &Context<Self>) -> impl IntoElement {
         div()
             .flex()
