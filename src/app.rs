@@ -63,6 +63,7 @@ pub struct AppRoot {
     content_scroll: ScrollHandle,
     scrollbar_hover: bool,
     scrollbar_drag: Option<f32>,
+    home_slide: usize,
 }
 
 impl AppRoot {
@@ -82,6 +83,7 @@ impl AppRoot {
             content_scroll: ScrollHandle::new(),
             scrollbar_hover: false,
             scrollbar_drag: None,
+            home_slide: 0,
         }
     }
 
@@ -546,6 +548,150 @@ impl AppRoot {
             })
     }
 
+    /// Finance headline on the `main` tab: the same slideshow content as the
+    /// finances section, for the current payout window as one pot.
+    fn home(&self, cx: &Context<Self>) -> impl IntoElement {
+        let snapshot = self.finances.read(cx).home_snapshot();
+        let count = snapshot.statements.len();
+        let index = if count == 0 {
+            0
+        } else {
+            self.home_slide % count
+        };
+        let current = snapshot.statements.get(index).cloned();
+        let dots = (0..count).map(|i| {
+            div()
+                .size(px(theme::geometry::DOT))
+                .bg(rgb(if i == index {
+                    theme::color::ACCENT
+                } else {
+                    theme::color::SURFACE
+                }))
+        });
+        let daily = snapshot
+            .daily
+            .map(finances::money)
+            .unwrap_or_else(|| "—".to_owned());
+
+        div()
+            .w_full()
+            .h(px(theme::geometry::SLIDE_HEIGHT))
+            .flex()
+            .items_center()
+            .justify_between()
+            .gap(px(theme::space::GROUP_Y))
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(theme::space::TIGHT))
+                    .when_some(current, |el, statement| {
+                        el.child(
+                            div()
+                                .flex()
+                                .items_baseline()
+                                .gap(px(theme::space::TIGHT))
+                                .child(
+                                    div()
+                                        .text_size(px(theme::type_scale::STATEMENT))
+                                        .font_weight(FontWeight(theme::weight::STATEMENT))
+                                        .text_color(rgb(theme::color::ACCENT))
+                                        .child(statement.value),
+                                )
+                                .child(
+                                    div()
+                                        .text_size(px(theme::type_scale::NAV))
+                                        .text_color(rgb(theme::color::FOREGROUND))
+                                        .child(statement.text),
+                                ),
+                        )
+                    })
+                    .when(count == 0, |el| {
+                        el.child(
+                            div()
+                                .text_size(px(theme::type_scale::HINT))
+                                .text_color(rgb(theme::color::MUTED))
+                                .child("no finance data yet"),
+                        )
+                    })
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(theme::space::TIGHT))
+                            .child(
+                                div()
+                                    .id("home-slide-prev")
+                                    .px(px(theme::space::DOT_GAP))
+                                    .text_size(px(theme::type_scale::NAV))
+                                    .text_color(rgb(if count > 1 {
+                                        theme::color::FOREGROUND
+                                    } else {
+                                        theme::color::MUTED
+                                    }))
+                                    .cursor_pointer()
+                                    .hover(|style| {
+                                        style.text_color(rgb(theme::color::ACCENT))
+                                    })
+                                    .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                                        if count > 0 {
+                                            this.home_slide = if this.home_slide == 0 {
+                                                count - 1
+                                            } else {
+                                                this.home_slide - 1
+                                            };
+                                            cx.notify();
+                                        }
+                                    }))
+                                    .child("‹"),
+                            )
+                            .child(div().flex().gap(px(theme::space::DOT_GAP)).children(dots))
+                            .child(
+                                div()
+                                    .id("home-slide-next")
+                                    .px(px(theme::space::DOT_GAP))
+                                    .text_size(px(theme::type_scale::NAV))
+                                    .text_color(rgb(if count > 1 {
+                                        theme::color::FOREGROUND
+                                    } else {
+                                        theme::color::MUTED
+                                    }))
+                                    .cursor_pointer()
+                                    .hover(|style| {
+                                        style.text_color(rgb(theme::color::ACCENT))
+                                    })
+                                    .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                                        if count > 0 {
+                                            this.home_slide = (this.home_slide + 1) % count;
+                                            cx.notify();
+                                        }
+                                    }))
+                                    .child("›"),
+                            ),
+                    ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .items_end()
+                    .gap(px(theme::space::DOT_GAP))
+                    .child(
+                        div()
+                            .text_size(px(theme::type_scale::MINI))
+                            .text_color(rgb(theme::color::MUTED))
+                            .child("break-even / day"),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(theme::type_scale::STATEMENT))
+                            .font_weight(FontWeight(theme::weight::STATEMENT))
+                            .text_color(rgb(theme::color::YELLOW))
+                            .child(daily),
+                    ),
+            )
+    }
+
     fn content(&self, window: &Window, cx: &Context<Self>) -> impl IntoElement {
         div()
             .flex_1()
@@ -573,6 +719,7 @@ impl AppRoot {
             .unwrap_or_default();
         let is_settings = label == SETTINGS_SECTION;
         let is_finances = label == FINANCES_SECTION;
+        let is_main = label == "main";
         div()
             .w_full()
             .pt(px(theme::space::CONTENT_TOP))
@@ -618,7 +765,15 @@ impl AppRoot {
                         .child(self.finances.clone()),
                 )
             })
-            .when(!is_settings && !is_finances, |el| {
+            .when(is_main, |el| {
+                el.child(
+                    div()
+                        .mt(px(theme::space::TIGHT))
+                        .w_full()
+                        .child(self.home(cx)),
+                )
+            })
+            .when(!is_settings && !is_finances && !is_main, |el| {
                 el.child(
                     div()
                         .mt(px(4.))

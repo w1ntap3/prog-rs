@@ -25,7 +25,8 @@ use self::model::{
     Adjustment, Category, FinanceData, Kind, Period, Transaction, add_months, days_in_month,
     first_of_month,
 };
-use self::stats::{Summary, money};
+use self::stats::Summary;
+pub use self::stats::{Statement, money};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Field {
@@ -66,6 +67,12 @@ struct FocusHandles {
     nutrition_budget: FocusHandle,
     allowance_budget: FocusHandle,
     combined_budget: FocusHandle,
+}
+
+/// Read-only finance headline used by the `main` tab.
+pub struct HomeSnapshot {
+    pub statements: Vec<Statement>,
+    pub daily: Option<i64>,
 }
 
 pub struct Finances {
@@ -155,6 +162,37 @@ impl Finances {
             },
         };
         this
+    }
+
+    /// Summary shown on the `main` tab: the current window as one pot.
+    pub fn home_snapshot(&self) -> HomeSnapshot {
+        if self.data.periods.is_empty() {
+            return HomeSnapshot {
+                statements: Vec::new(),
+                daily: None,
+            };
+        }
+        let today = Local::now().date_naive();
+        let index = self.data.current_period_index(today);
+        let period = &self.data.periods[index];
+        let summary = if period.combined {
+            Summary::compute(&self.data, index, Category::Nutrition, today)
+        } else {
+            let mut data = self.data.clone();
+            let total = data.periods[index].total_budget();
+            let period = &mut data.periods[index];
+            period.combined = true;
+            period.set_combined_balance(total);
+            Summary::compute(&data, index, Category::Nutrition, today)
+        };
+        HomeSnapshot {
+            statements: summary.statements(),
+            daily: if summary.is_past || summary.available == 0 {
+                None
+            } else {
+                Some(summary.threshold_round())
+            },
+        }
     }
 
     /// Called by the settings tab when conversion rates change.
