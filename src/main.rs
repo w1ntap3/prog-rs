@@ -8,6 +8,7 @@ mod finances;
 mod modal;
 mod paths;
 mod startup;
+mod study;
 mod theme;
 
 use gpui::{

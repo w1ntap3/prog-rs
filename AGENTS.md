@@ -10,8 +10,8 @@ because the user builds it himself; structure still being figured out.
 `main` shows the big picture: current trajectory vs. the baseline "him who
 didn't focus on any of this" (e.g. "you wouldn't have saved X CZK, you'd
 weigh 10kg more, ..."). Sections (finances, appeal, ...) map to life areas.
-The shell, config/data stores, finances and the appeal relapse clock are
-implemented; `study` and the remaining sections are placeholders.
+The shell, config/data stores, finances, study attendance and the appeal
+relapse clock are implemented; other sections are still placeholders.
 
 ## Commands
 
@@ -103,6 +103,10 @@ src/
   appeal/
     mod.rs    appeal view: second-ticking relapse-free clock and reset flow
     model.rs  v1 appeal.toml: last_relapse timestamp; calendar month/day clock
+  study/
+    mod.rs    study view: month calendar, attended/missed marks, monthly stats
+    schedule.rs fixed 2026 winter timetable; generates sessions Nov 1-Jan 10
+    model.rs  v1 study.toml: attendance map keyed by session
   finances/
     mod.rs    finance view: category/window toolbar, slideshow, chart,
               window + correction panels, entry form, ledger
@@ -128,11 +132,10 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   edit, not a code change. A section named `settings`
   (`app::SETTINGS_SECTION`) renders one settings block per configured section
   (finances supplies currency conversion rates; others show an empty note).
-  `finances` (`app::FINANCES_SECTION`) and `appeal` are the real content views
-  so far; `study` is a placeholder tab.
+  `finances`, `study` and `appeal` are the real content views so far.
 - Config vs data stays strict: currency rates live in `config.toml`, while
-  payout windows, transactions, balance corrections and the appeal
-  `last_relapse` live in private files under the data dir. All have validated
+  payout windows, transactions, balance corrections, study attendance and the
+  appeal `last_relapse` live in private files under the data dir. All have validated
   formats and are covered by directory export/import.
 - Finances: a window is a payout period with per-category balances
   (nutrition/allowance) or a single `combined` balance. Transactions are
@@ -148,6 +151,14 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   average plan, last-7-days daily average, and percent of that view's money
   left. `main` shows the same slideshow with combined (default), nutrition and
   allowance options for the current window.
+- Study is a fixed winter-semester timetable in `study/schedule.rs` (1 Nov
+  2026 - 10 Jan 2027; summer is intentionally absent). Attendance is the only
+  user data, stored in `study.toml` with `attended`/`missed` values. Monthly
+  stats count started classes, with unmarked treated as not attended, for all
+  classes, lectures, and labs+seminars; future sessions are not markable.
+  The occasional "odd weeks" lab uses ISO week parity until a real academic
+  week anchor is available. `main` shows a 3-slide study stats widget for the
+  current month.
 - Appeal stores only `last_relapse` in `appeal.toml` and derives a
   `MM:DD:HH:MM:SS` clock (calendar months, then days/hours/minutes/seconds) in
   the UI. The appeal tab is a centered square panel with a `RELAPSE-FREE`
@@ -157,7 +168,8 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   cancels instead of quitting. `main` shows the same clock without the reset
   control.
 - `main` groups every section summary under an explicit section label (for now
-  FINANCES and APPEAL) via `AppRoot::main_block`, separated by hairlines. New
+  FINANCES, STUDY and APPEAL) via `AppRoot::main_block`, separated by
+  hairlines. New
   sections with a main summary must be added there so ownership stays obvious.
 - Every tab's content lives in one shared vertical scroller with a custom
   right-edge scrollbar that only paints when content overflows; it widens on
