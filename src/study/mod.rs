@@ -190,6 +190,10 @@ impl Study {
     fn stat_block(&self, label: &'static str, stat: Stat) -> impl IntoElement {
         div()
             .flex_1()
+            .px(px(theme::space::TIGHT))
+            .py(px(theme::space::TIGHT))
+            .border_r_1()
+            .border_color(rgb(theme::color::SURFACE))
             .flex()
             .flex_col()
             .gap(px(theme::space::DOT_GAP))
@@ -264,6 +268,7 @@ impl Study {
         };
 
         div()
+            .w_full()
             .flex()
             .items_center()
             .justify_between()
@@ -308,35 +313,62 @@ impl Study {
                 None => theme::color::FOREGROUND,
             }
         };
+        let background = if !markable {
+            None
+        } else {
+            match state {
+                Some(Attendance::Attended) => {
+                    Some(rgb(theme::color::MINT).alpha(0.18))
+                }
+                Some(Attendance::Missed) => {
+                    Some(rgb(theme::color::PURPLE).alpha(0.18))
+                }
+                None => None,
+            }
+        };
 
         let mut label = div()
             .id(format!("att-{key}"))
-            .text_size(px(theme::type_scale::TINY))
+            .px(px(theme::space::DOT_GAP))
+            .py(px(theme::space::DOT_GAP / 2.0))
+            .text_size(px(theme::type_scale::LEDGER))
+            .font_weight(FontWeight(theme::weight::NAV_ACTIVE))
             .text_color(rgb(color))
             .child(session.short);
+        if let Some(background) = background {
+            label = label.bg(background);
+        }
         if markable {
             label = label
                 .cursor_pointer()
-                .hover(|style| style.text_color(rgb(theme::color::ACCENT)))
+                .hover(|style| {
+                    style
+                        .bg(rgb(theme::color::SURFACE))
+                        .text_color(rgb(theme::color::ACCENT))
+                })
                 .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
                     this.cycle_attendance(key.clone(), cx)
                 }));
         }
 
         div()
+            .w_full()
+            .min_w_0()
             .flex()
             .items_center()
             .gap(px(theme::space::DOT_GAP))
             .child(
                 div()
-                    .text_size(px(theme::type_scale::TINY))
+                    .w(px(theme::geometry::CALENDAR_TIME_W))
+                    .text_size(px(theme::type_scale::LEDGER))
                     .text_color(rgb(theme::color::MUTED))
                     .child(session.start.format("%H:%M").to_string()),
             )
             .child(label)
             .child(
                 div()
-                    .text_size(px(theme::type_scale::TINY))
+                    .w(px(theme::geometry::CALENDAR_KIND_W))
+                    .text_size(px(theme::type_scale::LEDGER))
                     .text_color(rgb(theme::color::MUTED))
                     .child(session.kind.short()),
             )
@@ -371,10 +403,17 @@ impl Study {
         let today = Local::now().date_naive();
         let now = Local::now().naive_local();
 
-        let weekdays = div().flex().children(
+        let weekdays = div()
+            .w_full()
+            .flex()
+            .border_b_1()
+            .border_color(rgb(theme::color::SURFACE))
+            .children(
             ["MON", "TUE", "WED", "THU", "FRI"].map(|label| {
                 div()
                     .flex_1()
+                    .min_w_0()
+                    .px(px(theme::space::DOT_GAP))
                     .pb(px(theme::space::DOT_GAP))
                     .text_size(px(theme::type_scale::MINI))
                     .text_color(rgb(theme::color::MUTED))
@@ -383,7 +422,7 @@ impl Study {
         );
 
         let grid = rows.into_iter().map(move |row| {
-            div().flex().children(row.into_iter().map(|day| match day {
+            div().w_full().flex().children(row.into_iter().map(|day| match day {
                 None => div()
                     .flex_1()
                     .min_w_0()
@@ -391,6 +430,7 @@ impl Study {
                     .border_b_1()
                     .border_r_1()
                     .border_color(rgb(theme::color::SURFACE))
+                    .overflow_hidden()
                     .into_any_element(),
                 Some(day) => {
                     let date = NaiveDate::from_ymd_opt(self.month.year(), self.month.month(), day)
@@ -404,14 +444,15 @@ impl Study {
                         .border_b_1()
                         .border_r_1()
                         .border_color(rgb(theme::color::SURFACE))
+                        .overflow_hidden()
                         .px(px(theme::space::DOT_GAP))
                         .py(px(theme::space::DOT_GAP / 2.0))
                         .flex()
                         .flex_col()
-                        .gap(px(0.))
+                        .gap(px(theme::space::DOT_GAP / 2.0))
                         .child(
                             div()
-                                .text_size(px(theme::type_scale::MINI))
+                                .text_size(px(theme::type_scale::HINT))
                                 .text_color(rgb(if is_today {
                                     theme::color::ACCENT
                                 } else {
@@ -434,6 +475,9 @@ impl Study {
             .w_full()
             .flex()
             .flex_col()
+            .border_t_1()
+            .border_l_1()
+            .border_color(rgb(theme::color::SURFACE))
             .child(weekdays)
             .children(grid)
     }
@@ -453,7 +497,9 @@ impl Render for Study {
                 div()
                     .w_full()
                     .flex()
-                    .gap(px(theme::space::GROUP_Y))
+                    .border_t_1()
+                    .border_b_1()
+                    .border_color(rgb(theme::color::SURFACE))
                     .child(self.stat_block("ALL CLASSES", summary.overall))
                     .child(self.stat_block("LECTURES", summary.lectures))
                     .child(self.stat_block("LABS & SEMINARS", summary.practice)),

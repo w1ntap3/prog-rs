@@ -66,8 +66,10 @@ pub mod geometry {
     pub const LEGEND_W: f32 = 14.0;
     /// Confirmation dialog width.
     pub const MODAL_W: f32 = 440.0;
-    /// Study calendar day cell.
-    pub const CALENDAR_DAY_H: f32 = 84.0;
+    /// Study calendar day cell and fixed session columns.
+    pub const CALENDAR_DAY_H: f32 = 96.0;
+    pub const CALENDAR_TIME_W: f32 = 32.0;
+    pub const CALENDAR_KIND_W: f32 = 22.0;
     /// Appeal clock square.
     pub const CLOCK_BOX: f32 = 360.0;
     /// Chart hover tooltip.
@@ -121,8 +123,6 @@ pub mod type_scale {
     pub const CLOCK_DIGIT: f32 = 38.0;
     /// Study stat values.
     pub const STAT: f32 = 20.0;
-    /// Dense calendar text.
-    pub const TINY: f32 = 9.0;
     /// Text field contents.
     pub const FIELD: f32 = 14.0;
     /// Ledger rows and other dense lists.
