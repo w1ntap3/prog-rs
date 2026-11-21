@@ -152,11 +152,21 @@ impl Study {
         }
     }
 
-    fn toggle(&mut self, key: String, state: Attendance, cx: &mut Context<Self>) {
-        if self.data.attendance.get(&key) == Some(&state) {
-            self.data.attendance.remove(&key);
-        } else {
-            self.data.attendance.insert(key, state);
+    /// Cycle a session: unmarked -> attended -> missed -> unmarked.
+    fn cycle_attendance(&mut self, key: String, cx: &mut Context<Self>) {
+        use Attendance::{Attended, Missed};
+        let next = match self.data.attendance.get(&key) {
+            None => Some(Attended),
+            Some(Attended) => Some(Missed),
+            Some(Missed) => None,
+        };
+        match next {
+            Some(state) => {
+                self.data.attendance.insert(key, state);
+            }
+            None => {
+                self.data.attendance.remove(&key);
+            }
         }
         self.status = match self.data.save() {
             Ok(()) => None,
@@ -175,13 +185,6 @@ impl Study {
             self.month = months[next];
             cx.notify();
         }
-    }
-
-    fn kicker(text: &'static str) -> impl IntoElement {
-        div()
-            .text_size(px(theme::type_scale::KICKER))
-            .text_color(rgb(theme::color::SEA_GREEN))
-            .child(text.to_uppercase())
     }
 
     fn stat_block(&self, label: &'static str, stat: Stat) -> impl IntoElement {
@@ -296,93 +299,46 @@ impl Study {
         let key = session.key();
         let state = self.data.attendance.get(&key).copied();
         let markable = session.start_at() <= now;
-        let selected_yes = state == Some(Attendance::Attended);
-        let selected_no = state == Some(Attendance::Missed);
-
-        let button = |glyph: &'static str,
-                      id: String,
-                      selected: bool,
-                      color: u32,
-                      attendance: Attendance,
-                      key: String,
-                      enabled: bool,
-                      cx: &Context<Self>| {
-            let mut element = div()
-                .id(id)
-                .px(px(theme::space::DOT_GAP))
-                .text_size(px(theme::type_scale::TINY))
-                .text_color(rgb(if selected { color } else { theme::color::MUTED }))
-                .child(glyph);
-            if enabled {
-                element = element
-                    .cursor_pointer()
-                    .hover(move |style| style.text_color(rgb(color)))
-                    .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
-                        this.toggle(key.clone(), attendance, cx)
-                    }));
+        let color = if !markable {
+            theme::color::FOREGROUND
+        } else {
+            match state {
+                Some(Attendance::Attended) => theme::color::MINT,
+                Some(Attendance::Missed) => theme::color::PURPLE,
+                None => theme::color::FOREGROUND,
             }
-            element
         };
+
+        let mut label = div()
+            .id(format!("att-{key}"))
+            .text_size(px(theme::type_scale::TINY))
+            .text_color(rgb(color))
+            .child(session.short);
+        if markable {
+            label = label
+                .cursor_pointer()
+                .hover(|style| style.text_color(rgb(theme::color::ACCENT)))
+                .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                    this.cycle_attendance(key.clone(), cx)
+                }));
+        }
 
         div()
             .flex()
-            .flex_col()
-            .gap(px(0.))
+            .items_center()
+            .gap(px(theme::space::DOT_GAP))
             .child(
                 div()
-                    .flex()
-                    .items_center()
-                    .gap(px(theme::space::DOT_GAP))
-                    .child(
-                        div()
-                            .text_size(px(theme::type_scale::TINY))
-                            .text_color(rgb(theme::color::MUTED))
-                            .child(session.start.format("%H:%M").to_string()),
-                    )
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .truncate()
-                            .text_size(px(theme::type_scale::TINY))
-                            .text_color(rgb(session.kind.color()))
-                            .child(session.code),
-                    )
-                    .child(
-                        div()
-                            .text_size(px(theme::type_scale::TINY))
-                            .text_color(rgb(theme::color::MUTED))
-                            .child(session.kind.short()),
-                    )
-                    .when(markable, |el| {
-                        el.child(button(
-                            "✓",
-                            format!("att-yes-{key}"),
-                            selected_yes,
-                            theme::color::MINT,
-                            Attendance::Attended,
-                            key.clone(),
-                            true,
-                            cx,
-                        ))
-                        .child(button(
-                            "✗",
-                            format!("att-no-{key}"),
-                            selected_no,
-                            theme::color::PURPLE,
-                            Attendance::Missed,
-                            key,
-                            true,
-                            cx,
-                        ))
-                    }),
-            )
-            .child(
-                div()
-                    .truncate()
                     .text_size(px(theme::type_scale::TINY))
                     .text_color(rgb(theme::color::MUTED))
-                    .child(session.name),
+                    .child(session.start.format("%H:%M").to_string()),
+            )
+            .child(label)
+            .child(
+                div()
+                    .text_size(px(theme::type_scale::TINY))
+                    .text_color(rgb(theme::color::MUTED))
+                    .child(session.kind.short()),
             )
     }
 
@@ -395,19 +351,28 @@ impl Study {
 
         let first = NaiveDate::from_ymd_opt(self.month.year(), self.month.month(), 1)
             .expect("first of month is valid");
-        let leading = first.weekday().num_days_from_monday() as usize;
+        let leading = match first.weekday().num_days_from_monday() {
+            0..=4 => first.weekday().num_days_from_monday() as usize,
+            _ => 0,
+        };
         let days = schedule::days_in_month(first);
         let mut cells: Vec<Option<u32>> = vec![None; leading];
-        cells.extend((1..=days).map(Some));
-        while cells.len() % 7 != 0 {
+        for day in 1..=days {
+            let date = NaiveDate::from_ymd_opt(self.month.year(), self.month.month(), day)
+                .expect("calendar day is valid");
+            if date.weekday().num_days_from_monday() < 5 {
+                cells.push(Some(day));
+            }
+        }
+        while cells.len() % 5 != 0 {
             cells.push(None);
         }
-        let rows: Vec<Vec<Option<u32>>> = cells.chunks(7).map(<[Option<u32>]>::to_vec).collect();
+        let rows: Vec<Vec<Option<u32>>> = cells.chunks(5).map(<[Option<u32>]>::to_vec).collect();
         let today = Local::now().date_naive();
         let now = Local::now().naive_local();
 
         let weekdays = div().flex().children(
-            ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].map(|label| {
+            ["MON", "TUE", "WED", "THU", "FRI"].map(|label| {
                 div()
                     .flex_1()
                     .pb(px(theme::space::DOT_GAP))
@@ -439,10 +404,11 @@ impl Study {
                         .border_b_1()
                         .border_r_1()
                         .border_color(rgb(theme::color::SURFACE))
-                        .p(px(theme::space::DOT_GAP))
+                        .px(px(theme::space::DOT_GAP))
+                        .py(px(theme::space::DOT_GAP / 2.0))
                         .flex()
                         .flex_col()
-                        .gap(px(theme::space::DOT_GAP))
+                        .gap(px(0.))
                         .child(
                             div()
                                 .text_size(px(theme::type_scale::MINI))
@@ -481,7 +447,7 @@ impl Render for Study {
             .w_full()
             .flex()
             .flex_col()
-            .gap(px(theme::space::GROUP_Y))
+            .gap(px(theme::space::TIGHT))
             .child(self.month_nav(cx))
             .child(
                 div()
@@ -492,7 +458,6 @@ impl Render for Study {
                     .child(self.stat_block("LECTURES", summary.lectures))
                     .child(self.stat_block("LABS & SEMINARS", summary.practice)),
             )
-            .child(Self::kicker("attendance calendar"))
             .child(self.calendar(cx))
             .when_some(self.status.clone(), |el, status| {
                 el.child(

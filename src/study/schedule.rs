@@ -33,14 +33,6 @@ impl SessionKind {
         }
     }
 
-    pub fn color(self) -> u32 {
-        match self {
-            SessionKind::Lecture => crate::theme::color::ACCENT,
-            SessionKind::Seminar => crate::theme::color::MINT,
-            SessionKind::Lab => crate::theme::color::PURPLE,
-        }
-    }
-
     pub fn counts_as_lecture(self) -> bool {
         matches!(self, SessionKind::Lecture)
     }
@@ -56,7 +48,7 @@ struct Template {
     start: NaiveTime,
     end: NaiveTime,
     code: &'static str,
-    name: &'static str,
+    short: &'static str,
     kind: SessionKind,
     odd_weeks_only: bool,
 }
@@ -66,32 +58,32 @@ fn time(hour: u32, minute: u32) -> NaiveTime {
 }
 
 fn templates() -> Vec<Template> {
-    let t = |weekday, start, end, code, name, kind, odd_weeks_only| Template {
+    let t = |weekday, start, end, code, short, kind, odd_weeks_only| Template {
         weekday,
         start,
         end,
         code,
-        name,
+        short,
         kind,
         odd_weeks_only,
     };
 
     vec![
-        t(Weekday::Mon, time(9, 15), time(10, 45), "BE5B01PRS", "Probability and Statistics", SessionKind::Lecture, false),
-        t(Weekday::Mon, time(9, 30), time(11, 30), "03240527", "Entrepreneurship Essentials", SessionKind::Lecture, false),
-        t(Weekday::Mon, time(11, 0), time(12, 30), "BE5B01PRS", "Probability and Statistics", SessionKind::Lecture, false),
-        t(Weekday::Mon, time(12, 45), time(14, 15), "BE5B01PRS", "Probability and Statistics", SessionKind::Seminar, false),
-        t(Weekday::Mon, time(14, 45), time(16, 15), "BE5B33ALG", "Algorithms", SessionKind::Lecture, false),
-        t(Weekday::Mon, time(16, 30), time(18, 0), "BE5B33ALG", "Algorithms", SessionKind::Seminar, false),
-        t(Weekday::Tue, time(12, 45), time(14, 15), "BE5B02PH2", "Physics 2", SessionKind::Lab, true),
-        t(Weekday::Tue, time(14, 30), time(16, 0), "BE5B31ZEO", "Fundamentals of Electrical Circuits", SessionKind::Lecture, false),
-        t(Weekday::Tue, time(16, 15), time(17, 45), "BE5B02PH2", "Physics 2", SessionKind::Seminar, false),
-        t(Weekday::Wed, time(9, 15), time(10, 45), "BE5B99CPL", "C Programming Language", SessionKind::Lecture, false),
-        t(Weekday::Wed, time(11, 0), time(12, 30), "BE5B99CPL", "C Programming Language", SessionKind::Seminar, false),
-        t(Weekday::Wed, time(14, 30), time(16, 0), "BE5B31ZEO", "Fundamentals of Electrical Circuits", SessionKind::Seminar, false),
-        t(Weekday::Thu, time(9, 15), time(11, 45), "BE5B02PH2", "Physics 2", SessionKind::Lecture, false),
-        t(Weekday::Fri, time(11, 0), time(12, 30), "BE5B32PKS", "Computer and Communication Networks", SessionKind::Lecture, false),
-        t(Weekday::Fri, time(12, 45), time(14, 15), "BE5B32PKS", "Computer and Communication Networks", SessionKind::Seminar, false),
+        t(Weekday::Mon, time(9, 15), time(10, 45), "BE5B01PRS", "PRS", SessionKind::Lecture, false),
+        t(Weekday::Mon, time(9, 30), time(11, 30), "03240527", "ENT", SessionKind::Lecture, false),
+        t(Weekday::Mon, time(11, 0), time(12, 30), "BE5B01PRS", "PRS", SessionKind::Lecture, false),
+        t(Weekday::Mon, time(12, 45), time(14, 15), "BE5B01PRS", "PRS", SessionKind::Seminar, false),
+        t(Weekday::Mon, time(14, 45), time(16, 15), "BE5B33ALG", "ALG", SessionKind::Lecture, false),
+        t(Weekday::Mon, time(16, 30), time(18, 0), "BE5B33ALG", "ALG", SessionKind::Seminar, false),
+        t(Weekday::Tue, time(12, 45), time(14, 15), "BE5B02PH2", "PH2", SessionKind::Lab, true),
+        t(Weekday::Tue, time(14, 30), time(16, 0), "BE5B31ZEO", "ZEO", SessionKind::Lecture, false),
+        t(Weekday::Tue, time(16, 15), time(17, 45), "BE5B02PH2", "PH2", SessionKind::Seminar, false),
+        t(Weekday::Wed, time(9, 15), time(10, 45), "BE5B99CPL", "CPL", SessionKind::Lecture, false),
+        t(Weekday::Wed, time(11, 0), time(12, 30), "BE5B99CPL", "CPL", SessionKind::Seminar, false),
+        t(Weekday::Wed, time(14, 30), time(16, 0), "BE5B31ZEO", "ZEO", SessionKind::Seminar, false),
+        t(Weekday::Thu, time(9, 15), time(11, 45), "BE5B02PH2", "PH2", SessionKind::Lecture, false),
+        t(Weekday::Fri, time(11, 0), time(12, 30), "BE5B32PKS", "PKS", SessionKind::Lecture, false),
+        t(Weekday::Fri, time(12, 45), time(14, 15), "BE5B32PKS", "PKS", SessionKind::Seminar, false),
     ]
 }
 
@@ -101,7 +93,7 @@ pub struct Session {
     pub start: NaiveTime,
     pub end: NaiveTime,
     pub code: &'static str,
-    pub name: &'static str,
+    pub short: &'static str,
     pub kind: SessionKind,
 }
 
@@ -188,7 +180,7 @@ pub fn sessions_in_month(month: NaiveDate) -> Vec<Session> {
                 start: template.start,
                 end: template.end,
                 code: template.code,
-                name: template.name,
+                short: template.short,
                 kind: template.kind,
             });
         }
@@ -213,8 +205,8 @@ mod tests {
         let month = NaiveDate::from_ymd_opt(2026, 11, 1).unwrap();
         let sessions = sessions_in_month(month);
         assert!(!sessions.is_empty());
-        assert!(sessions.iter().any(|session| session.code == "BE5B01PRS"));
-        assert!(sessions.iter().any(|session| session.code == "03240527"));
+        assert!(sessions.iter().any(|session| session.short == "PRS"));
+        assert!(sessions.iter().any(|session| session.short == "ENT"));
         assert!(sessions.iter().all(|session| session.date >= semester_start()));
     }
 

@@ -104,7 +104,7 @@ src/
     mod.rs    appeal view: second-ticking relapse-free clock and reset flow
     model.rs  v1 appeal.toml: last_relapse timestamp; calendar month/day clock
   study/
-    mod.rs    study view: month calendar, attended/missed marks, monthly stats
+    mod.rs    study view: Mon-Fri month calendar, attendance cycling, stats
     schedule.rs fixed 2026 winter timetable; generates sessions Nov 1-Jan 10
     model.rs  v1 study.toml: attendance map keyed by session
   finances/
@@ -153,7 +153,10 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   allowance options for the current window.
 - Study is a fixed winter-semester timetable in `study/schedule.rs` (1 Nov
   2026 - 10 Jan 2027; summer is intentionally absent). Attendance is the only
-  user data, stored in `study.toml` with `attended`/`missed` values. Monthly
+  user data, stored in `study.toml` with `attended`/`missed` values. The
+  calendar is Monday-Friday only, shows short course ids, and clicking an id
+  cycles unmarked -> attended -> missed -> unmarked; future sessions are not
+  clickable. Monthly
   stats count started classes, with unmarked treated as not attended, for all
   classes, lectures, and labs+seminars; future sessions are not markable.
   The occasional "odd weeks" lab uses ISO week parity until a real academic

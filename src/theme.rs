@@ -67,7 +67,7 @@ pub mod geometry {
     /// Confirmation dialog width.
     pub const MODAL_W: f32 = 440.0;
     /// Study calendar day cell.
-    pub const CALENDAR_DAY_H: f32 = 104.0;
+    pub const CALENDAR_DAY_H: f32 = 84.0;
     /// Appeal clock square.
     pub const CLOCK_BOX: f32 = 360.0;
     /// Chart hover tooltip.
