@@ -175,6 +175,7 @@ impl Finances {
         let today = Local::now().date_naive();
         let index = self.data.current_period_index(today);
         let period = &self.data.periods[index];
+        let split = !period.combined;
         let summary = if period.combined {
             Summary::compute(&self.data, index, Category::Nutrition, today)
         } else {
@@ -185,8 +186,23 @@ impl Finances {
             period.set_combined_balance(total);
             Summary::compute(&data, index, Category::Nutrition, today)
         };
+
+        let mut statements = summary.statements();
+        if split {
+            for category in Category::ALL {
+                if let Some(percent) =
+                    stats::category_percent(&self.data, period, category, today)
+                {
+                    statements.push(Statement {
+                        value: format!("{percent}%"),
+                        text: format!("{} left", category.label()),
+                    });
+                }
+            }
+        }
+
         HomeSnapshot {
-            statements: summary.statements(),
+            statements,
             daily: if summary.is_past || summary.available == 0 {
                 None
             } else {
@@ -1623,20 +1639,15 @@ impl Finances {
         if day < first.0 || day > last.0 {
             return None;
         }
-        for pair in points.windows(2) {
-            if day >= pair[0].0 && day <= pair[1].0 {
-                let span = pair[1].0 - pair[0].0;
-                if span <= f32::EPSILON {
-                    return Some(pair[1].1);
-                }
-                let t = (day - pair[0].0) / span;
-                return Some(
-                    (pair[0].1 as f64 + (pair[1].1 - pair[0].1) as f64 * t as f64).round()
-                        as i64,
-                );
+        let mut value = first.1;
+        for (x, money) in points {
+            if *x <= day + 0.0001 {
+                value = *money;
+            } else {
+                break;
             }
         }
-        Some(last.1)
+        Some(value)
     }
 
     fn plan_at(summary: &Summary, day: f32) -> Option<i64> {

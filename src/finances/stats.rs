@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use chrono::{NaiveDate, Timelike};
 
-use super::model::{Category, FinanceData, Kind};
+use super::model::{Category, FinanceData, Kind, Period};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Statement {
@@ -51,6 +51,14 @@ pub struct Summary {
 
     /// Adaptive break-even: what is left divided by the days still left.
     pub required_daily: f64,
+    /// Consecutive days ending today under that day's break-even amount.
+    pub streak: i64,
+    /// Average daily spending over the last up-to-7 days of the window.
+    pub last_week_daily: Option<i64>,
+    pub last_week_days: i64,
+    /// Percent of each category's available money still left (split windows).
+    pub nutrition_left: Option<i64>,
+    pub allowance_left: Option<i64>,
 
     /// Where the window ends if the current spending pace continues.
     pub projected_left: i64,
@@ -107,6 +115,8 @@ impl Summary {
         let mut today_gained = 0;
         let mut events: Vec<(f32, i64)> = Vec::new();
         let mut per_note: BTreeMap<String, i64> = BTreeMap::new();
+        let mut per_day_spent: BTreeMap<NaiveDate, i64> = BTreeMap::new();
+        let mut per_day_net: BTreeMap<NaiveDate, i64> = BTreeMap::new();
 
         for tx in &data.transactions {
             if (!combined && tx.category != category)
@@ -120,6 +130,8 @@ impl Summary {
                 Kind::Expense => {
                     spent += tx.amount_czk;
                     events.push((transaction_x(start, tx.date, tx.time), -tx.amount_czk));
+                    *per_day_spent.entry(tx.date).or_default() += tx.amount_czk;
+                    *per_day_net.entry(tx.date).or_default() -= tx.amount_czk;
                     if tx.date == today {
                         today_spent += tx.amount_czk;
                     }
@@ -130,6 +142,7 @@ impl Summary {
                 Kind::Income => {
                     gained += tx.amount_czk;
                     events.push((transaction_x(start, tx.date, tx.time), tx.amount_czk));
+                    *per_day_net.entry(tx.date).or_default() += tx.amount_czk;
                     if tx.date == today {
                         today_gained += tx.amount_czk;
                     }
@@ -147,6 +160,7 @@ impl Summary {
             }
             adjusted += adj.delta_czk;
             events.push((transaction_x(start, adj.date, adj.time), adj.delta_czk));
+            *per_day_net.entry(adj.date).or_default() += adj.delta_czk;
         }
 
         let available = budget + gained + adjusted;
@@ -216,6 +230,51 @@ impl Summary {
             0.0
         };
 
+        let last_day = if is_future {
+            0
+        } else if is_past {
+            total_days
+        } else {
+            day_index
+        };
+        let mut balance = budget as f64;
+        let mut streak = 0i64;
+        if available > 0 {
+            for day in 1..=last_day {
+                let date = start + chrono::Duration::days(day - 1);
+                let days_left = (total_days - day + 1).max(1) as f64;
+                let threshold = balance / days_left;
+                let spent_day = per_day_spent.get(&date).copied().unwrap_or(0) as f64;
+                if spent_day <= threshold {
+                    streak += 1;
+                } else {
+                    streak = 0;
+                }
+                balance += per_day_net.get(&date).copied().unwrap_or(0) as f64;
+            }
+        }
+        let last_week_days = last_day.min(7);
+        let last_week_daily = if last_week_days > 0 {
+            let sum: i64 = (0..last_week_days)
+                .map(|offset| {
+                    let date = start + chrono::Duration::days(last_day - last_week_days + offset);
+                    per_day_spent.get(&date).copied().unwrap_or(0)
+                })
+                .sum();
+            Some((sum as f64 / last_week_days as f64).round() as i64)
+        } else {
+            None
+        };
+
+        let (nutrition_left, allowance_left) = if combined {
+            (None, None)
+        } else {
+            (
+                category_percent(data, period, Category::Nutrition, cutoff),
+                category_percent(data, period, Category::Allowance, cutoff),
+            )
+        };
+
         let projected_left = if day_index > 0 {
             available - (spent as f64 / day_index as f64 * total_days as f64).round() as i64
         } else {
@@ -226,10 +285,14 @@ impl Summary {
         let total_f = total_days as f32;
         let mut money = budget;
         let mut points = vec![(0.0f32, budget)];
-
+        let mut last_x = 0.0f32;
         for (x, delta) in events {
+            if x > last_x {
+                points.push((x, money));
+                last_x = x;
+            }
             money += delta;
-            push_point(&mut points, x, money);
+            points.push((x, money));
         }
 
         let end_x = if is_future {
@@ -239,7 +302,7 @@ impl Summary {
         } else {
             day_index as f32
         };
-        if end_x > points.last().map(|(x, _)| *x).unwrap_or(0.0) {
+        if end_x > last_x {
             points.push((end_x, money));
         }
 
@@ -266,6 +329,11 @@ impl Summary {
             avg_daily,
             gap,
             required_daily,
+            streak,
+            last_week_daily,
+            last_week_days,
+            nutrition_left,
+            allowance_left,
             projected_left,
             days_ahead,
             today_spent,
@@ -326,18 +394,78 @@ impl Summary {
             });
         }
 
+        if self.streak > 0 {
+            let days = self.streak;
+            out.push(Statement {
+                value: format!("{days} {}", if days == 1 { "day" } else { "days" }),
+                text: "in a row under the break-even amount".into(),
+            });
+        }
+
+        if let Some(average) = self.last_week_daily {
+            out.push(Statement {
+                value: money(average),
+                text: format!(
+                    "average per day over the last {} {}",
+                    self.last_week_days,
+                    if self.last_week_days == 1 { "day" } else { "days" }
+                ),
+            });
+        }
+
+        if let Some(percent) = self.nutrition_left {
+            out.push(Statement {
+                value: format!("{percent}%"),
+                text: "nutrition left".into(),
+            });
+        }
+        if let Some(percent) = self.allowance_left {
+            out.push(Statement {
+                value: format!("{percent}%"),
+                text: "allowance left".into(),
+            });
+        }
+
         out
     }
 }
 
-fn push_point(points: &mut Vec<(f32, i64)>, x: f32, y: i64) {
-    if let Some(last) = points.last_mut() {
-        if (last.0 - x).abs() < f32::EPSILON {
-            last.1 = y;
-            return;
+/// Percentage of a category's available money still left at `cutoff`.
+pub fn category_percent(
+    data: &FinanceData,
+    period: &Period,
+    category: Category,
+    cutoff: NaiveDate,
+) -> Option<i64> {
+    let mut available = period.budget(category);
+    let mut spent = 0;
+    for tx in &data.transactions {
+        if tx.category != category
+            || tx.date < period.start
+            || tx.date >= period.end
+            || tx.date > cutoff
+        {
+            continue;
+        }
+        match tx.kind {
+            Kind::Expense => spent += tx.amount_czk,
+            Kind::Income => available += tx.amount_czk,
         }
     }
-    points.push((x, y));
+    for adj in &data.adjustments {
+        if adj.category != category
+            || adj.date < period.start
+            || adj.date >= period.end
+            || adj.date > cutoff
+        {
+            continue;
+        }
+        available += adj.delta_czk;
+    }
+    if available <= 0 {
+        return None;
+    }
+    Some(((available - spent) * 100 / available).clamp(0, 100))
 }
 
 fn transaction_x(start: NaiveDate, date: NaiveDate, time: chrono::NaiveTime) -> f32 {
@@ -473,23 +601,19 @@ mod tests {
     }
 
     #[test]
-    fn gains_are_points_on_a_continuous_line() {
+    fn gains_are_vertical_steps_at_their_time() {
         let mut data = data();
         data.transactions.clear();
         data.periods[0].set_budget(Category::Nutrition, 0);
         data.transactions
             .push(gain(date(2026, 11, 1), 3000, Category::Nutrition));
         let summary = Summary::compute(&data, 0, Category::Nutrition, date(2026, 11, 5));
-        let has_gain_point = summary
-            .points
-            .iter()
-            .any(|(x, money)| (*x - 0.5).abs() < f32::EPSILON && *money == 3000);
-        assert!(has_gain_point, "expected the gain point: {:?}", summary.points);
-        let no_vertical = summary
-            .points
-            .windows(2)
-            .all(|pair| pair[1].0 > pair[0].0);
-        assert!(no_vertical, "points must not share an X: {:?}", summary.points);
+        let step = summary.points.windows(2).any(|pair| {
+            (pair[0].0 - pair[1].0).abs() < f32::EPSILON
+                && pair[0].1 == 0
+                && pair[1].1 == 3000
+        });
+        assert!(step, "expected a vertical jump at the gain time: {:?}", summary.points);
     }
 
     #[test]
@@ -514,6 +638,17 @@ mod tests {
         // At the end of the window the plan is exactly zero.
         let end = Summary::compute(&data, 0, Category::Nutrition, date(2026, 12, 2));
         assert_eq!(end.plan_now, 0);
+    }
+
+    #[test]
+    fn streak_week_average_and_category_percentages() {
+        let data = data();
+        let summary = Summary::compute(&data, 0, Category::Nutrition, date(2026, 11, 5));
+        assert_eq!(summary.streak, 5);
+        assert_eq!(summary.last_week_days, 5);
+        assert_eq!(summary.last_week_daily, Some(20));
+        assert_eq!(summary.nutrition_left, Some(96));
+        assert_eq!(summary.allowance_left, Some(80));
     }
 
     #[test]
