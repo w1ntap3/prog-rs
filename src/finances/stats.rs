@@ -387,13 +387,6 @@ impl Summary {
             });
         }
 
-        if self.available > 0 && !self.is_future && self.projected_left >= 0 {
-            out.push(Statement {
-                value: money(self.projected_left),
-                text: "left at the end if you keep this pace".into(),
-            });
-        }
-
         if self.streak > 0 {
             let days = self.streak;
             out.push(Statement {
@@ -676,6 +669,15 @@ mod tests {
         assert_eq!(summary.budget, 3000);
         assert_eq!(summary.spent, 300);
         assert_eq!(summary.remaining, 2700);
+        assert!(summary.nutrition_left.is_none());
+        assert!(summary.allowance_left.is_none());
+        assert!(
+            summary
+                .statements()
+                .iter()
+                .all(|statement| !statement.text.contains("left")),
+            "combined windows must not show category leftovers"
+        );
     }
 
     #[test]
