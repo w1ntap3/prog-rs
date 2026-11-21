@@ -98,7 +98,6 @@ pub struct AppRoot {
     scrollbar_drag: Option<f32>,
     home_slide: usize,
     home_view: HomeView,
-    study_slide: usize,
 }
 
 impl AppRoot {
@@ -122,7 +121,6 @@ impl AppRoot {
             scrollbar_drag: None,
             home_slide: 0,
             home_view: HomeView::Combined,
-            study_slide: 0,
         };
         this.start_main_tick(cx);
         this
@@ -641,131 +639,9 @@ impl AppRoot {
             .child(child)
     }
 
-    fn study_widget(&self, cx: &Context<Self>) -> impl IntoElement {
+    fn study_stats(&self, cx: &Context<Self>) -> impl IntoElement {
         let summary = self.study.read(cx).current_summary();
-        let slides = summary.slides();
-        let count = slides.len();
-        let index = if count == 0 { 0 } else { self.study_slide % count };
-        let (value, text) = slides
-            .get(index)
-            .cloned()
-            .unwrap_or_else(|| ("0/0 (—)".to_owned(), "attendance"));
-        let dots = (0..count).map(|i| {
-            div()
-                .size(px(theme::geometry::DOT))
-                .bg(rgb(if i == index {
-                    theme::color::ACCENT
-                } else {
-                    theme::color::SURFACE
-                }))
-        });
-
-        div()
-            .w_full()
-            .h(px(theme::geometry::SLIDE_HEIGHT))
-            .flex()
-            .items_center()
-            .justify_between()
-            .gap(px(theme::space::GROUP_Y))
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(theme::space::TIGHT))
-                    .child(
-                        div()
-                            .flex()
-                            .items_baseline()
-                            .gap(px(theme::space::TIGHT))
-                            .child(
-                                div()
-                                    .text_size(px(theme::type_scale::STATEMENT))
-                                    .font_weight(FontWeight(theme::weight::STATEMENT))
-                                    .text_color(rgb(theme::color::ACCENT))
-                                    .child(value),
-                            )
-                            .child(
-                                div()
-                                    .text_size(px(theme::type_scale::NAV))
-                                    .text_color(rgb(theme::color::FOREGROUND))
-                                    .child(text),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap(px(theme::space::TIGHT))
-                            .child(
-                                div()
-                                    .id("study-slide-prev")
-                                    .px(px(theme::space::DOT_GAP))
-                                    .text_size(px(theme::type_scale::NAV))
-                                    .text_color(rgb(if count > 1 {
-                                        theme::color::FOREGROUND
-                                    } else {
-                                        theme::color::MUTED
-                                    }))
-                                    .cursor_pointer()
-                                    .hover(|style| {
-                                        style.text_color(rgb(theme::color::ACCENT))
-                                    })
-                                    .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
-                                        if count > 0 {
-                                            this.study_slide = if this.study_slide == 0 {
-                                                count - 1
-                                            } else {
-                                                this.study_slide - 1
-                                            };
-                                            cx.notify();
-                                        }
-                                    }))
-                                    .child("‹"),
-                            )
-                            .child(div().flex().gap(px(theme::space::DOT_GAP)).children(dots))
-                            .child(
-                                div()
-                                    .id("study-slide-next")
-                                    .px(px(theme::space::DOT_GAP))
-                                    .text_size(px(theme::type_scale::NAV))
-                                    .text_color(rgb(if count > 1 {
-                                        theme::color::FOREGROUND
-                                    } else {
-                                        theme::color::MUTED
-                                    }))
-                                    .cursor_pointer()
-                                    .hover(|style| {
-                                        style.text_color(rgb(theme::color::ACCENT))
-                                    })
-                                    .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
-                                        if count > 0 {
-                                            this.study_slide = (this.study_slide + 1) % count;
-                                            cx.notify();
-                                        }
-                                    }))
-                                    .child("›"),
-                            ),
-                    ),
-            )
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .items_end()
-                    .gap(px(theme::space::DOT_GAP))
-                    .child(
-                        div()
-                            .text_size(px(theme::type_scale::MINI))
-                            .text_color(rgb(theme::color::MUTED))
-                            .child("attendance"),
-                    )
-                    .child(
-                        div()
-                            .text_size(px(theme::type_scale::NAV))
-                            .text_color(rgb(theme::color::FOREGROUND))
-                            .child(summary.month.format("%B %Y").to_string().to_uppercase()),
-                    ),
-            )
+        study::summary_row(summary)
     }
 
     /// Informational relapse clock on `main`; resetting lives in the appeal tab.
@@ -1081,7 +957,7 @@ impl AppRoot {
                         .flex_col()
                         .gap(px(theme::space::GROUP_Y))
                         .child(self.main_block("finances", self.home(cx)))
-                        .child(self.main_block("study", self.study_widget(cx)))
+                        .child(self.main_block("study", self.study_stats(cx)))
                         .child(self.main_block("appeal", self.appeal_clock(cx))),
                 )
             })

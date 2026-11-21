@@ -35,20 +35,9 @@ impl Stat {
 
 #[derive(Debug, Clone)]
 pub struct StudySummary {
-    pub month: NaiveDate,
     pub overall: Stat,
     pub lectures: Stat,
     pub practice: Stat,
-}
-
-impl StudySummary {
-    pub fn slides(&self) -> Vec<(String, &'static str)> {
-        vec![
-            (self.overall.text(), "all classes this month"),
-            (self.lectures.text(), "lectures this month"),
-            (self.practice.text(), "labs & seminars this month"),
-        ]
-    }
 }
 
 pub struct Study {
@@ -145,7 +134,6 @@ impl Study {
         }
 
         StudySummary {
-            month,
             overall,
             lectures,
             practice,
@@ -185,31 +173,6 @@ impl Study {
             self.month = months[next];
             cx.notify();
         }
-    }
-
-    fn stat_block(&self, label: &'static str, stat: Stat) -> impl IntoElement {
-        div()
-            .flex_1()
-            .px(px(theme::space::TIGHT))
-            .py(px(theme::space::TIGHT))
-            .border_r_1()
-            .border_color(rgb(theme::color::SURFACE))
-            .flex()
-            .flex_col()
-            .gap(px(theme::space::DOT_GAP))
-            .child(
-                div()
-                    .text_size(px(theme::type_scale::MINI))
-                    .text_color(rgb(theme::color::MUTED))
-                    .child(label),
-            )
-            .child(
-                div()
-                    .text_size(px(theme::type_scale::STAT))
-                    .font_weight(FontWeight(theme::weight::NAV_ACTIVE))
-                    .text_color(rgb(theme::color::FOREGROUND))
-                    .child(stat.text()),
-            )
     }
 
     fn month_nav(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -511,6 +474,44 @@ impl Study {
     }
 }
 
+fn stat_block(label: &'static str, stat: Stat) -> impl IntoElement {
+    div()
+        .flex_1()
+        .px(px(theme::space::TIGHT))
+        .py(px(theme::space::TIGHT))
+        .border_r_1()
+        .border_color(rgb(theme::color::SURFACE))
+        .flex()
+        .flex_col()
+        .gap(px(theme::space::DOT_GAP))
+        .child(
+            div()
+                .text_size(px(theme::type_scale::MINI))
+                .text_color(rgb(theme::color::MUTED))
+                .child(label),
+        )
+        .child(
+            div()
+                .text_size(px(theme::type_scale::STAT))
+                .font_weight(FontWeight(theme::weight::NAV_ACTIVE))
+                .text_color(rgb(theme::color::FOREGROUND))
+                .child(stat.text()),
+        )
+}
+
+/// The same three-number stats row shown on the study tab.
+pub fn summary_row(summary: StudySummary) -> impl IntoElement {
+    div()
+        .w_full()
+        .flex()
+        .border_t_1()
+        .border_b_1()
+        .border_color(rgb(theme::color::SURFACE))
+        .child(stat_block("ALL CLASSES", summary.overall))
+        .child(stat_block("LECTURES", summary.lectures))
+        .child(stat_block("LABS & SEMINARS", summary.practice))
+}
+
 impl Render for Study {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let summary = self.summary_for(self.month);
@@ -521,17 +522,7 @@ impl Render for Study {
             .flex_col()
             .gap(px(theme::space::TIGHT))
             .child(self.month_nav(cx))
-            .child(
-                div()
-                    .w_full()
-                    .flex()
-                    .border_t_1()
-                    .border_b_1()
-                    .border_color(rgb(theme::color::SURFACE))
-                    .child(self.stat_block("ALL CLASSES", summary.overall))
-                    .child(self.stat_block("LECTURES", summary.lectures))
-                    .child(self.stat_block("LABS & SEMINARS", summary.practice)),
-            )
+            .child(summary_row(summary))
             .child(self.calendar(cx))
             .when_some(self.status.clone(), |el, status| {
                 el.child(

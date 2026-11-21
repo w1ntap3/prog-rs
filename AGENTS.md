@@ -161,8 +161,8 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   stats count started classes, with unmarked treated as not attended, for all
   classes, lectures, and labs+seminars; future sessions are not markable.
   The occasional "odd weeks" lab uses ISO week parity until a real academic
-  week anchor is available. `main` shows a 3-slide study stats widget for the
-  current month.
+  week anchor is available. `main` shows the same three-number stats row for
+  the current month.
 - Appeal stores only `last_relapse` in `appeal.toml` and derives a
   `MM:DD:HH:MM:SS` clock (calendar months, then days/hours/minutes/seconds) in
   the UI. The appeal tab is a centered square panel with a `RELAPSE-FREE`
