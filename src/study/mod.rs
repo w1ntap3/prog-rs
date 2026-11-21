@@ -304,74 +304,94 @@ impl Study {
         let key = session.key();
         let state = self.data.attendance.get(&key).copied();
         let markable = session.start_at() <= now;
-        let color = if !markable {
-            theme::color::FOREGROUND
+        let kind_color = session.kind.color();
+
+        let (accent, background, course_color) = if !markable {
+            (
+                theme::color::SURFACE,
+                rgb(theme::color::SURFACE).alpha(0.12),
+                theme::color::MUTED,
+            )
         } else {
             match state {
-                Some(Attendance::Attended) => theme::color::MINT,
-                Some(Attendance::Missed) => theme::color::PURPLE,
-                None => theme::color::FOREGROUND,
-            }
-        };
-        let background = if !markable {
-            None
-        } else {
-            match state {
-                Some(Attendance::Attended) => {
-                    Some(rgb(theme::color::MINT).alpha(0.18))
-                }
-                Some(Attendance::Missed) => {
-                    Some(rgb(theme::color::PURPLE).alpha(0.18))
-                }
-                None => None,
+                Some(Attendance::Attended) => (
+                    theme::color::MINT,
+                    rgb(theme::color::MINT).alpha(0.16),
+                    theme::color::MINT,
+                ),
+                Some(Attendance::Missed) => (
+                    theme::color::PURPLE,
+                    rgb(theme::color::PURPLE).alpha(0.16),
+                    theme::color::PURPLE,
+                ),
+                None => (
+                    kind_color,
+                    rgb(theme::color::SURFACE).alpha(0.18),
+                    theme::color::FOREGROUND,
+                ),
             }
         };
 
-        let mut label = div()
+        let mut card = div()
             .id(format!("att-{key}"))
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(theme::space::DOT_GAP / 2.0))
             .px(px(theme::space::DOT_GAP))
-            .py(px(theme::space::DOT_GAP / 2.0))
-            .text_size(px(theme::type_scale::LEDGER))
-            .font_weight(FontWeight(theme::weight::NAV_ACTIVE))
-            .text_color(rgb(color))
-            .child(session.short);
-        if let Some(background) = background {
-            label = label.bg(background);
+            .py(px(theme::space::DOT_GAP))
+            .border_l_2()
+            .border_color(rgb(accent))
+            .bg(background)
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .gap(px(theme::space::DOT_GAP))
+                    .child(
+                        div()
+                            .whitespace_nowrap()
+                            .text_size(px(theme::type_scale::MINI))
+                            .text_color(rgb(theme::color::MUTED))
+                            .child(session.start.format("%H:%M").to_string()),
+                    )
+                    .child(
+                        div()
+                            .whitespace_nowrap()
+                            .px(px(theme::space::DOT_GAP / 2.0))
+                            .text_size(px(theme::type_scale::MINI))
+                            .text_color(rgb(kind_color))
+                            .bg(rgb(kind_color).alpha(0.15))
+                            .child(session.kind.short()),
+                    ),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .truncate()
+                    .text_size(px(theme::type_scale::LEDGER))
+                    .font_weight(FontWeight(theme::weight::NAV_ACTIVE))
+                    .text_color(rgb(course_color))
+                    .child(session.short),
+            );
+        if !markable {
+            card = card.opacity(0.7);
         }
         if markable {
-            label = label
+            card = card
                 .cursor_pointer()
                 .hover(|style| {
                     style
-                        .bg(rgb(theme::color::SURFACE))
-                        .text_color(rgb(theme::color::ACCENT))
+                        .bg(rgb(theme::color::SURFACE).alpha(0.5))
+                        .border_color(rgb(theme::color::ACCENT))
                 })
                 .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
                     this.cycle_attendance(key.clone(), cx)
                 }));
         }
-
-        div()
-            .w_full()
-            .min_w_0()
-            .flex()
-            .items_center()
-            .gap(px(theme::space::DOT_GAP))
-            .child(
-                div()
-                    .w(px(theme::geometry::CALENDAR_TIME_W))
-                    .text_size(px(theme::type_scale::LEDGER))
-                    .text_color(rgb(theme::color::MUTED))
-                    .child(session.start.format("%H:%M").to_string()),
-            )
-            .child(label)
-            .child(
-                div()
-                    .w(px(theme::geometry::CALENDAR_KIND_W))
-                    .text_size(px(theme::type_scale::LEDGER))
-                    .text_color(rgb(theme::color::MUTED))
-                    .child(session.kind.short()),
-            )
+        card
     }
 
     fn calendar(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -430,7 +450,7 @@ impl Study {
                     .border_b_1()
                     .border_r_1()
                     .border_color(rgb(theme::color::SURFACE))
-                    .overflow_hidden()
+                    .overflow_x_hidden()
                     .into_any_element(),
                 Some(day) => {
                     let date = NaiveDate::from_ymd_opt(self.month.year(), self.month.month(), day)
@@ -444,15 +464,23 @@ impl Study {
                         .border_b_1()
                         .border_r_1()
                         .border_color(rgb(theme::color::SURFACE))
-                        .overflow_hidden()
+                        .overflow_x_hidden()
+                        .when(is_today, |el| {
+                            el.bg(rgb(theme::color::ACCENT).alpha(0.06))
+                        })
                         .px(px(theme::space::DOT_GAP))
-                        .py(px(theme::space::DOT_GAP / 2.0))
+                        .py(px(theme::space::DOT_GAP))
                         .flex()
                         .flex_col()
                         .gap(px(theme::space::DOT_GAP / 2.0))
                         .child(
                             div()
                                 .text_size(px(theme::type_scale::HINT))
+                                .font_weight(FontWeight(if is_today {
+                                    theme::weight::NAV_ACTIVE
+                                } else {
+                                    theme::weight::NAV
+                                }))
                                 .text_color(rgb(if is_today {
                                     theme::color::ACCENT
                                 } else {

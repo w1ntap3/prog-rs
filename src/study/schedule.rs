@@ -33,6 +33,14 @@ impl SessionKind {
         }
     }
 
+    pub fn color(self) -> u32 {
+        match self {
+            SessionKind::Lecture => crate::theme::color::ACCENT,
+            SessionKind::Seminar => crate::theme::color::MINT,
+            SessionKind::Lab => crate::theme::color::PURPLE,
+        }
+    }
+
     pub fn counts_as_lecture(self) -> bool {
         matches!(self, SessionKind::Lecture)
     }

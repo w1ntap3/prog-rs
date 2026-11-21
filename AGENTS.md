@@ -154,9 +154,10 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
 - Study is a fixed winter-semester timetable in `study/schedule.rs` (1 Nov
   2026 - 10 Jan 2027; summer is intentionally absent). Attendance is the only
   user data, stored in `study.toml` with `attended`/`missed` values. The
-  calendar is Monday-Friday only, shows short course ids, and clicking an id
-  cycles unmarked -> attended -> missed -> unmarked; future sessions are not
-  clickable. Monthly
+  calendar is Monday-Friday only, shows short course ids as full-width event
+  cards (time + type badge + short id, type-colored accent, today tinted), and
+  clicking a card cycles unmarked -> attended -> missed -> unmarked; future
+  sessions are not clickable and are dimmed. Monthly
   stats count started classes, with unmarked treated as not attended, for all
   classes, lectures, and labs+seminars; future sessions are not markable.
   The occasional "odd weeks" lab uses ISO week parity until a real academic
