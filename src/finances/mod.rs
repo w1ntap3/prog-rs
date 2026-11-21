@@ -22,9 +22,9 @@ use crate::currency::{Currency, Rates, parse_decimal, trim_decimal};
 use crate::theme;
 
 use self::model::{
-    Adjustment, Category, FinanceData, Kind, Period, Transaction, add_months, days_in_month,
-    first_of_month,
+    Adjustment, FinanceData, Kind, Period, Transaction, add_months, days_in_month, first_of_month,
 };
+pub use self::model::Category;
 use self::stats::Summary;
 pub use self::stats::{Statement, money};
 
@@ -164,8 +164,9 @@ impl Finances {
         this
     }
 
-    /// Summary shown on the `main` tab: the current window as one pot.
-    pub fn home_snapshot(&self) -> HomeSnapshot {
+    /// Summary shown on the `main` tab. `None` = combined, otherwise the
+    /// selected category of the same window.
+    pub fn home_snapshot(&self, category: Option<Category>) -> HomeSnapshot {
         if self.data.periods.is_empty() {
             return HomeSnapshot {
                 statements: Vec::new(),
@@ -175,34 +176,29 @@ impl Finances {
         let today = Local::now().date_naive();
         let index = self.data.current_period_index(today);
         let period = &self.data.periods[index];
-        let split = !period.combined;
-        let summary = if period.combined {
-            Summary::compute(&self.data, index, Category::Nutrition, today)
-        } else {
-            let mut data = self.data.clone();
-            let total = data.periods[index].total_budget();
-            let period = &mut data.periods[index];
-            period.combined = true;
-            period.set_combined_balance(total);
-            Summary::compute(&data, index, Category::Nutrition, today)
-        };
 
-        let mut statements = summary.statements();
-        if split {
-            for category in Category::ALL {
-                if let Some(percent) =
-                    stats::category_percent(&self.data, period, category, today)
-                {
-                    statements.push(Statement {
-                        value: format!("{percent}%"),
-                        text: format!("{} left", category.label()),
-                    });
+        let summary = match category {
+            None => {
+                if period.combined {
+                    Summary::compute(&self.data, index, Category::Nutrition, today)
+                } else {
+                    let mut data = self.data.clone();
+                    let total = data.periods[index].total_budget();
+                    let period = &mut data.periods[index];
+                    period.combined = true;
+                    period.set_combined_balance(total);
+                    Summary::compute(&data, index, Category::Nutrition, today)
                 }
             }
-        }
+            Some(category) => {
+                let mut data = self.data.clone();
+                data.periods[index].combined = false;
+                Summary::compute(&data, index, category, today)
+            }
+        };
 
         HomeSnapshot {
-            statements,
+            statements: summary.statements(),
             daily: if summary.is_past || summary.available == 0 {
                 None
             } else {

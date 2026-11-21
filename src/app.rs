@@ -29,6 +29,31 @@ pub fn key_bindings() -> [KeyBinding; 1] {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HomeView {
+    Combined,
+    Nutrition,
+    Allowance,
+}
+
+impl HomeView {
+    fn category(self) -> Option<finances::Category> {
+        match self {
+            HomeView::Combined => None,
+            HomeView::Nutrition => Some(finances::Category::Nutrition),
+            HomeView::Allowance => Some(finances::Category::Allowance),
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            HomeView::Combined => "combined",
+            HomeView::Nutrition => "nutrition",
+            HomeView::Allowance => "allowance",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SettingsField {
     EurRate,
     AznRate,
@@ -64,6 +89,7 @@ pub struct AppRoot {
     scrollbar_hover: bool,
     scrollbar_drag: Option<f32>,
     home_slide: usize,
+    home_view: HomeView,
 }
 
 impl AppRoot {
@@ -84,6 +110,7 @@ impl AppRoot {
             scrollbar_hover: false,
             scrollbar_drag: None,
             home_slide: 0,
+            home_view: HomeView::Combined,
         }
     }
 
@@ -550,8 +577,34 @@ impl AppRoot {
 
     /// Finance headline on the `main` tab: the same slideshow content as the
     /// finances section, for the current payout window as one pot.
+    fn home_tab(&self, view: HomeView, cx: &Context<Self>) -> impl IntoElement {
+        let selected = self.home_view == view;
+        div()
+            .id(format!("home-view-{}", view.label()))
+            .px(px(theme::space::ITEM_X))
+            .py(px(theme::space::ITEM_Y - 2.))
+            .when(selected, |el| el.bg(rgb(theme::color::SURFACE)))
+            .text_size(px(theme::type_scale::NAV))
+            .text_color(rgb(if selected {
+                theme::color::ACCENT
+            } else {
+                theme::color::MUTED
+            }))
+            .cursor_pointer()
+            .hover(|style| style.text_color(rgb(theme::color::FOREGROUND)))
+            .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                this.home_view = view;
+                this.home_slide = 0;
+                cx.notify();
+            }))
+            .child(view.label())
+    }
+
     fn home(&self, cx: &Context<Self>) -> impl IntoElement {
-        let snapshot = self.finances.read(cx).home_snapshot();
+        let snapshot = self
+            .finances
+            .read(cx)
+            .home_snapshot(self.home_view.category());
         let count = snapshot.statements.len();
         let index = if count == 0 {
             0
@@ -573,7 +626,7 @@ impl AppRoot {
             .map(finances::money)
             .unwrap_or_else(|| "—".to_owned());
 
-        div()
+        let band = div()
             .w_full()
             .h(px(theme::geometry::SLIDE_HEIGHT))
             .flex()
@@ -689,7 +742,29 @@ impl AppRoot {
                             .text_color(rgb(theme::color::YELLOW))
                             .child(daily),
                     ),
+            );
+
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(theme::space::TIGHT))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(theme::space::TIGHT))
+                    .child(
+                        div()
+                            .text_size(px(theme::type_scale::MINI))
+                            .text_color(rgb(theme::color::MUTED))
+                            .child("viewing"),
+                    )
+                    .child(self.home_tab(HomeView::Combined, cx))
+                    .child(self.home_tab(HomeView::Nutrition, cx))
+                    .child(self.home_tab(HomeView::Allowance, cx)),
             )
+            .child(band)
     }
 
     fn content(&self, window: &Window, cx: &Context<Self>) -> impl IntoElement {

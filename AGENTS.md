@@ -136,9 +136,10 @@ scripts/      install-desktop-entry.sh (KRunner launcher installer)
   actual balance line and the straight average plan from the window's first
   income; hovering shows minute-precision values for both. A single
   break-even/day readout (`remaining / days left`) is the primary number. The
-  slideshow adds a signed gap, under-break-even streak, recent daily average
-  and per-category percentages for split windows. `main` shows
-  the same slideshow via a read-only snapshot of the current window as one pot.
+  slideshow has exactly three shared stats per view: signed gap from the
+  average plan, last-7-days daily average, and percent of that view's money
+  left. `main` shows the same slideshow with combined (default), nutrition and
+  allowance options for the current window.
 - Every tab's content lives in one shared vertical scroller with a custom
   right-edge scrollbar that only paints when content overflows; it widens on
   hover and is draggable. The sidebar list scrolls independently.
